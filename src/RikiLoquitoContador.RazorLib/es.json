@@ -1,0 +1,67 @@
+{
+  "App": {
+    "Title": "RikiLoquitoContador",
+    "Footer": "© 2026 RikiLoquitoContador - Arquitectura Híbrida Premium",
+    "DarkMode": "Modo Oscuro",
+    "LightMode": "Modo Claro"
+  },
+  "Login": {
+    "Title": "Acceso al Sistema",
+    "PasswordLabel": "Contraseña",
+    "SubmitButton": "Ingresar",
+    "InvalidPassword": "Contraseña incorrecta. Intente nuevamente.",
+    "Required": "La contraseña es requerida."
+  },
+  "Dashboard": {
+    "Title": "Panel de Control - Facturas",
+    "ScanButton": "Escanear Carpeta",
+    "Scanning": "Escaneando...",
+    "ExportCsv": "Exportar CSV",
+    "ExportJson": "Exportar JSON",
+    "ExportExcel": "Sincronizar Excel",
+    "SearchPlaceholder": "Buscar por nombre de archivo o cliente...",
+    "FilterClient": "Filtrar por Cliente",
+    "Table": {
+      "FileName": "Archivo",
+      "Client": "Cliente",
+      "Amount": "Monto Total",
+      "Date": "Fecha Creación",
+      "Indexed": "Indexado",
+      "Actions": "Acciones",
+      "NoRecords": "No se encontraron facturas indexadas.",
+      "Size": "Tamaño"
+    },
+    "EditDialog": {
+      "Title": "Editar Factura",
+      "ClientLabel": "Cliente",
+      "AmountLabel": "Monto Total",
+      "CommentsLabel": "Comentarios",
+      "Save": "Guardar",
+      "Cancel": "Cancelar",
+      "Success": "Factura actualizada correctamente."
+    },
+    "ScannerStatus": {
+      "Monitoring": "Monitoreando en tiempo real",
+      "NotMonitoring": "Monitoreo detenido"
+    }
+  },
+  "Settings": {
+    "Title": "Configuración General",
+    "FolderPath": "Ruta de la Carpeta a Escanear",
+    "SelectFolder": "Seleccionar Carpeta",
+    "Save": "Guardar Cambios",
+    "Success": "Configuración guardada exitosamente.",
+    "HashHelper": "Para cambiar la contraseña, configure el nuevo Hash en appsettings.json.",
+    "SecuritySection": "Seguridad y Acceso",
+    "NewPassword": "Nueva Contraseña",
+    "ConfirmPassword": "Confirmar Nueva Contraseña",
+    "PasswordMismatch": "Las contraseñas no coinciden.",
+    "PasswordHelp": "Deje estos campos en blanco si no desea cambiar su contraseña actual.",
+    "AiSection": "Configuración de Inteligencia Artificial (IA)",
+    "AiProvider": "Proveedor de IA",
+    "AiEndpoint": "Endpoint / Base URL de la API",
+    "AiModel": "Nombre del Modelo",
+    "AiApiKey": "Clave API (API Key)",
+    "AiHelp": "Seleccione un proveedor para pre-cargar la configuración recomendada de la API."
+  }
+}

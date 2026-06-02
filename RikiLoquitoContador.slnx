@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RikiLoquitoContador.Core/RikiLoquitoContador.Core.csproj" />
+    <Project Path="src/RikiLoquitoContador.Maui/RikiLoquitoContador.Maui.csproj" />
+    <Project Path="src/RikiLoquitoContador.RazorLib/RikiLoquitoContador.RazorLib.csproj" />
+    <Project Path="src/RikiLoquitoContador.Web/RikiLoquitoContador.Web.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/RikiLoquitoContador.Tests/RikiLoquitoContador.Tests.csproj" />
+  </Folder>
+</Solution>

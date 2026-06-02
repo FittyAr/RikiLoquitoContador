@@ -1,0 +1,138 @@
+@inherits LayoutComponentBase
+@inject ISessionService Session
+@inject II18nService Localizer
+@implements IDisposable
+
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="_customTheme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (!Session.IsAuthenticated)
+{
+    <Login />
+}
+else
+{
+    <MudLayout>
+        <MudAppBar Elevation="4" Style="background: #049F6C; color: white;">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+            <MudText Typo="Typo.h6" Class="ml-3" Style="font-weight: 700; letter-spacing: 0.5px;">
+                @Localizer.T("App.Title")
+            </MudText>
+            <MudSpacer />
+            
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
+                           Color="Color.Inherit" 
+                           OnClick="@ToggleDarkMode" 
+                           title="@(_isDarkMode ? Localizer.T("App.LightMode") : Localizer.T("App.DarkMode"))" />
+                           
+            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="@Logout" title="Cerrar Sesión" />
+        </MudAppBar>
+
+        <MudDrawer @bind-Open="@_drawerOpen" Elevation="2" Style="background: #1e1e1e; color: white;" ClipMode="DrawerClipMode.Always">
+            <div class="d-flex flex-column justify-space-between h-100 py-4">
+                <MudNavMenu>
+                    <MudText Typo="Typo.subtitle2" Class="mud-text-secondary px-4 py-2">MENÚ PRINCIPAL</MudText>
+                    <MudNavLink Icon="@Icons.Material.Filled.Dashboard" 
+                                IconColor="@(_currentView == "dashboard" ? Color.Success : Color.Default)"
+                                Style="@(_currentView == "dashboard" ? "color: #C2FE71; background: rgba(194, 254, 113, 0.1);" : "color: white;")"
+                                OnClick="@(() => SetView("dashboard"))">
+                        Panel de Facturas
+                    </MudNavLink>
+                    <MudNavLink Icon="@Icons.Material.Filled.Settings" 
+                                IconColor="@(_currentView == "settings" ? Color.Success : Color.Default)"
+                                Style="@(_currentView == "settings" ? "color: #C2FE71; background: rgba(194, 254, 113, 0.1);" : "color: white;")"
+                                OnClick="@(() => SetView("settings"))">
+                        @Localizer.T("Settings.Title")
+                    </MudNavLink>
+                </MudNavMenu>
+                
+                <div class="px-4">
+                    <MudDivider Class="my-3" Style="background: rgba(255, 255, 255, 0.1);" />
+                    <MudText Typo="Typo.caption" Class="d-block mud-text-secondary align-center text-center">
+                        @Localizer.T("App.Footer")
+                    </MudText>
+                </div>
+            </div>
+        </MudDrawer>
+
+        <MudMainContent Class="pb-8" Style="background: #121212; min-height: 100vh; color: white;">
+            @if (_currentView == "dashboard")
+            {
+                <Dashboard />
+            }
+            else if (_currentView == "settings")
+            {
+                <Settings />
+            }
+        </MudMainContent>
+    </MudLayout>
+}
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode = true;
+    private string _currentView = "dashboard";
+
+    private readonly MudTheme _customTheme = new()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#049F6C",
+            Success = "#049F6C",
+            Secondary = "#C2FE71",
+            AppbarBackground = "#049F6C",
+            Background = "#F5F5F5",
+            DrawerBackground = "#FFFFFF"
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#C2FE71",
+            Success = "#049F6C",
+            Secondary = "#87D37C",
+            Background = "#121212",
+            Surface = "#1E1E1E",
+            DrawerBackground = "#1E1E1E",
+            AppbarBackground = "#049F6C",
+            TextPrimary = "#FFFFFF",
+            TextSecondary = "rgba(255, 255, 255, 0.7)"
+        }
+    };
+
+    protected override void OnInitialized()
+    {
+        Session.OnStateChanged += HandleStateChanged;
+    }
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private void ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private void SetView(string view)
+    {
+        _currentView = view;
+        StateHasChanged();
+    }
+
+    private void Logout()
+    {
+        Session.Logout();
+    }
+
+    private void HandleStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Session.OnStateChanged -= HandleStateChanged;
+    }
+}

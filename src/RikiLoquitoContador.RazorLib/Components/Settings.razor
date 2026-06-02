@@ -1,0 +1,345 @@
+@inject IConfigService ConfigService
+@inject IFileScannerService FileScanner
+@inject II18nService Localizer
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6 mb-8">
+    <MudCard Elevation="8" Class="rounded-lg" Style="background: rgba(33, 33, 33, 0.85); color: white; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px);">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Settings" Color="Color.Success" Class="mr-3" Size="Size.Large" />
+                    <MudText Typo="Typo.h5" Style="font-weight: 700; color: #C2FE71;">
+                        @Localizer.T("Settings.Title")
+                    </MudText>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+
+        <MudCardContent>
+            <MudForm @ref="_form" @bind-IsValid="_isValid" Class="d-flex flex-column gap-6">
+                
+                <!-- SECCIÓN 1: MONITOREO DE CARPETAS -->
+                <div>
+                    <div class="d-flex align-center mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Success" Class="mr-2" />
+                        <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                            Monitoreo de Archivos
+                        </MudText>
+                    </div>
+
+                    <MudGrid>
+                        <MudItem xs="12" md="8">
+                            <MudTextField @bind-Value="_watchFolderPath"
+                                          Label="@Localizer.T("Settings.FolderPath")"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Style="color: white;"
+                                          Required="true"
+                                          Placeholder="C:\FacturasContador"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Folder" />
+                        </MudItem>
+                        <MudItem xs="12" md="4" Class="d-flex align-center">
+                            @if (_directoryExists)
+                            {
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CheckCircle">Existe</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Warning" Variant="Variant.Text" Icon="@Icons.Material.Filled.Warning">No existe</MudChip>
+                            }
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary mt-1">
+                                La carpeta donde el contador depositará las facturas en formato JPG, PNG, PDF o DOCX.
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudNumericField @bind-Value="_scanInterval"
+                                             Label="Intervalo de Escaneo (Segundos)"
+                                             Variant="Variant.Outlined"
+                                             Margin="Margin.Dense"
+                                             Style="color: white;"
+                                             Min="5"
+                                             Max="3600" />
+                        </MudItem>
+                    </MudGrid>
+                </div>
+
+                <MudDivider Style="background-color: rgba(255, 255, 255, 0.1);" />
+
+                <!-- SECCIÓN 2: SEGURIDAD (CAMBIO DE CONTRASEÑA) -->
+                <div>
+                    <div class="d-flex align-center mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Success" Class="mr-2" />
+                        <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                            @Localizer.T("Settings.SecuritySection")
+                        </MudText>
+                    </div>
+
+                    <div class="mb-4">
+                        <MudAlert Severity="Severity.Info" 
+                                  Variant="Variant.Outlined" 
+                                  Class="rounded-lg border-dashed"
+                                  Icon="@Icons.Material.Filled.Lock"
+                                  Style="color: #A5D6A7; border-color: rgba(165, 214, 167, 0.4);">
+                            @Localizer.T("Settings.PasswordHelp")
+                        </MudAlert>
+                    </div>
+
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_newPassword"
+                                          Label="@Localizer.T("Settings.NewPassword")"
+                                          InputType="@_passwordInputType"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Style="color: white;"
+                                          Adornment="Adornment.End"
+                                          AdornmentIcon="@_passwordInputIcon"
+                                          OnAdornmentClick="TogglePasswordVisibility" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_confirmPassword"
+                                          Label="@Localizer.T("Settings.ConfirmPassword")"
+                                          InputType="@_passwordInputType"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Style="color: white;"
+                                          Validation="@(new Func<string, string?>(ValidatePasswordMatch))" />
+                        </MudItem>
+                    </MudGrid>
+                </div>
+
+                <MudDivider Style="background-color: rgba(255, 255, 255, 0.1);" />
+
+                <!-- SECCIÓN 3: CONFIGURACIÓN DE IA -->
+                <div>
+                    <div class="d-flex align-center mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Color="Color.Success" Class="mr-2" />
+                        <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                            @Localizer.T("Settings.AiSection")
+                        </MudText>
+                    </div>
+
+                    <div class="mb-4">
+                        <MudAlert Severity="Severity.Info" 
+                                  Variant="Variant.Outlined" 
+                                  Class="rounded-lg border-dashed"
+                                  Icon="@Icons.Material.Filled.Help"
+                                  Style="color: #A5D6A7; border-color: rgba(165, 214, 167, 0.4);">
+                            @Localizer.T("Settings.AiHelp")
+                        </MudAlert>
+                    </div>
+
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudSelect T="string"
+                                       Label="@Localizer.T("Settings.AiProvider")"
+                                       Value="_selectedProvider"
+                                       ValueChanged="OnProviderSelected"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       Style="color: white;">
+                                @foreach (var provider in _aiPresets.Keys)
+                                {
+                                    <MudSelectItem Value="@provider">@provider</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_aiModelName"
+                                          Label="@Localizer.T("Settings.AiModel")"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Style="color: white;"
+                                          Required="true" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_aiEndpoint"
+                                          Label="@Localizer.T("Settings.AiEndpoint")"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Style="color: white;"
+                                          Required="true" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_aiApiKey"
+                                          Label="@Localizer.T("Settings.AiApiKey")"
+                                          InputType="@_apiKeyInputType"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Style="color: white;"
+                                          Adornment="Adornment.End"
+                                          AdornmentIcon="@_apiKeyInputIcon"
+                                          OnAdornmentClick="ToggleApiKeyVisibility" />
+                        </MudItem>
+                    </MudGrid>
+                </div>
+
+            </MudForm>
+        </MudCardContent>
+
+        <MudCardActions Class="justify-end pa-6">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveSettings"
+                       Disabled="!_isValid"
+                       Style="background: linear-gradient(135deg, #049F6C 0%, #87D37C 100%); color: white; font-weight: 600;"
+                       Class="px-6 py-2 rounded-pill">
+                @Localizer.T("Settings.Save")
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private MudForm? _form;
+    private bool _isValid;
+    private string _watchFolderPath = string.Empty;
+    private int _scanInterval = 10;
+    private bool _directoryExists;
+
+    // Security (Password)
+    private string _newPassword = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private bool _passwordVisibility = false;
+    private InputType _passwordInputType => _passwordVisibility ? InputType.Text : InputType.Password;
+    private string _passwordInputIcon => _passwordVisibility ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff;
+
+    // AI Configuration
+    private string _selectedProvider = "OpenAI";
+    private string _aiEndpoint = string.Empty;
+    private string _aiModelName = string.Empty;
+    private string _aiApiKey = string.Empty;
+    private bool _apiKeyVisibility = false;
+    private InputType _apiKeyInputType => _apiKeyVisibility ? InputType.Text : InputType.Password;
+    private string _apiKeyInputIcon => _apiKeyVisibility ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff;
+
+    private struct AiPreset
+    {
+        public string Endpoint { get; set; }
+        public string ModelName { get; set; }
+    }
+
+    private readonly Dictionary<string, AiPreset> _aiPresets = new()
+    {
+        { "OpenAI", new AiPreset { Endpoint = "https://api.openai.com/v1/chat/completions", ModelName = "gpt-4o-mini" } },
+        { "Gemini", new AiPreset { Endpoint = "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions", ModelName = "gemini-1.5-flash" } },
+        { "Kimi", new AiPreset { Endpoint = "https://api.moonshot.cn/v1/chat/completions", ModelName = "moonshot-v1-8k" } },
+        { "Qwen", new AiPreset { Endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", ModelName = "qwen-turbo" } },
+        { "Ollama (Local)", new AiPreset { Endpoint = "http://localhost:11434/v1/chat/completions", ModelName = "llama3" } },
+        { "LM Studio (Local)", new AiPreset { Endpoint = "http://localhost:1234/v1/chat/completions", ModelName = "meta-llama-3-8b-instruct" } },
+        { "Personalizado", new AiPreset { Endpoint = "", ModelName = "" } }
+    };
+
+    protected override void OnInitialized()
+    {
+        var settings = ConfigService.GetSettings();
+        _watchFolderPath = settings.ScanningSettings.WatchFolderPath;
+        _scanInterval = settings.ScanningSettings.ScanIntervalSeconds;
+
+        _selectedProvider = settings.AiSettings?.Provider ?? "OpenAI";
+        _aiEndpoint = settings.AiSettings?.Endpoint ?? "";
+        _aiModelName = settings.AiSettings?.ModelName ?? "";
+        _aiApiKey = settings.AiSettings?.ApiKey ?? "";
+
+        CheckDirectoryExists();
+    }
+
+    private void CheckDirectoryExists()
+    {
+        _directoryExists = !string.IsNullOrWhiteSpace(_watchFolderPath) && System.IO.Directory.Exists(_watchFolderPath);
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        _passwordVisibility = !_passwordVisibility;
+    }
+
+    private void ToggleApiKeyVisibility()
+    {
+        _apiKeyVisibility = !_apiKeyVisibility;
+    }
+
+    private string? ValidatePasswordMatch(string confirmPassword)
+    {
+        if (!string.IsNullOrEmpty(_newPassword) && confirmPassword != _newPassword)
+        {
+            return Localizer.T("Settings.PasswordMismatch");
+        }
+        return null;
+    }
+
+    private void OnProviderSelected(string provider)
+    {
+        _selectedProvider = provider;
+        if (_aiPresets.TryGetValue(provider, out var preset))
+        {
+            if (provider != "Personalizado")
+            {
+                _aiEndpoint = preset.Endpoint;
+                _aiModelName = preset.ModelName;
+            }
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        if (_form == null) return;
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
+
+        try
+        {
+            var settings = ConfigService.GetSettings();
+            
+            // Stop old monitoring
+            FileScanner.StopMonitoring();
+
+            // Update scanning settings
+            settings.ScanningSettings.WatchFolderPath = _watchFolderPath;
+            settings.ScanningSettings.ScanIntervalSeconds = _scanInterval;
+
+            // Update password if a new one is typed
+            if (!string.IsNullOrEmpty(_newPassword))
+            {
+                if (_newPassword != _confirmPassword)
+                {
+                    Snackbar.Add(Localizer.T("Settings.PasswordMismatch"), Severity.Error);
+                    return;
+                }
+                settings.SecuritySettings.PasswordHash = ConfigService.HashPassword(_newPassword);
+            }
+
+            // Update AI settings
+            if (settings.AiSettings == null)
+            {
+                settings.AiSettings = new AiSettings();
+            }
+            settings.AiSettings.Provider = _selectedProvider;
+            settings.AiSettings.Endpoint = _aiEndpoint;
+            settings.AiSettings.ModelName = _aiModelName;
+            settings.AiSettings.ApiKey = _aiApiKey;
+
+            ConfigService.UpdateSettings(settings);
+
+            CheckDirectoryExists();
+
+            // Start new monitoring
+            FileScanner.StartMonitoring();
+
+            // Clear password fields
+            _newPassword = string.Empty;
+            _confirmPassword = string.Empty;
+
+            Snackbar.Add(Localizer.T("Settings.Success"), Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar la configuración: {ex.Message}", Severity.Error);
+        }
+    }
+}

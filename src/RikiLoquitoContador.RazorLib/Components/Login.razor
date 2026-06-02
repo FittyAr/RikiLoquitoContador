@@ -1,0 +1,102 @@
+@inject ISessionService Session
+@inject II18nService Localizer
+
+<div class="d-flex align-center justify-center mud-width-full" style="height: 100vh; background: radial-gradient(circle at 10% 20%, rgb(4, 159, 108) 0%, rgb(194, 254, 113) 90.1%);">
+    <MudContainer MaxWidth="MaxWidth.ExtraSmall">
+        <MudPaper Elevation="16" Class="pa-8 mud-background-gray-dark rounded-lg border-solid border-1 border-white/20" Style="backdrop-filter: blur(10px); background: rgba(33, 33, 33, 0.85);">
+            <div class="d-flex flex-column align-center mb-6">
+                <MudAvatar Color="Color.Success" Size="Size.Large" Class="mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Size="Size.Large" />
+                </MudAvatar>
+                <MudText Typo="Typo.h5" Align="Align.Center" Style="font-weight: 700; color: #C2FE71;">
+                    @Localizer.T("App.Title")
+                </MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
+                    @Localizer.T("Login.Title")
+                </MudText>
+            </div>
+
+            <MudForm @ref="_form" @bind-IsValid="_isValid">
+                <MudTextField T="string" 
+                              Label="@Localizer.T("Login.PasswordLabel")" 
+                              InputType="@_passwordInput" 
+                              Adornment="Adornment.End" 
+                              AdornmentIcon="@_passwordInputIcon" 
+                              OnAdornmentClick="TogglePasswordVisibility" 
+                              Required="true" 
+                              RequiredError="@Localizer.T("Login.Required")"
+                              @bind-Value="_password"
+                              Variant="Variant.Outlined"
+                              Style="color: white;"
+                              Immediate="true"
+                              OnKeyDown="HandleKeyDown" />
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <MudText Color="Color.Error" Typo="Typo.caption" Class="mt-2 d-block">
+                        @_error
+                    </MudText>
+                }
+
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Success" 
+                           FullWidth="true" 
+                           Class="mt-6 py-3 rounded-pill" 
+                           OnClick="Submit"
+                           Style="background: linear-gradient(135deg, #049F6C 0%, #87D37C 100%); color: white; font-weight: 600;">
+                    @Localizer.T("Login.SubmitButton")
+                </MudButton>
+            </MudForm>
+        </MudPaper>
+    </MudContainer>
+</div>
+
+@code {
+    private MudForm? _form;
+    private bool _isValid;
+    private string _password = string.Empty;
+    private string _error = string.Empty;
+    
+    private bool _passwordVisibility;
+    private InputType _passwordInput = InputType.Password;
+    private string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+
+    private void TogglePasswordVisibility()
+    {
+        if (_passwordVisibility)
+        {
+            _passwordVisibility = false;
+            _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+            _passwordInput = InputType.Password;
+        }
+        else
+        {
+            _passwordVisibility = true;
+            _passwordInputIcon = Icons.Material.Filled.Visibility;
+            _passwordInput = InputType.Text;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Submit();
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (_form == null) return;
+        await _form.ValidateAsync();
+
+        if (!_form.IsValid) return;
+
+        _error = string.Empty;
+        var success = Session.Login(_password);
+        if (!success)
+        {
+            _error = Localizer.T("Login.InvalidPassword");
+        }
+    }
+}
