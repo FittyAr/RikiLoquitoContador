@@ -27,8 +27,8 @@ namespace RikiLoquitoContador.Tests
             var service = new ExportService();
             var facturas = new List<Factura>
             {
-                new() { Id = 1, FileName = "factura1.pdf", ClientName = "Acme", TotalAmount = 1500.50m },
-                new() { Id = 2, FileName = "factura2.png", ClientName = "Globex", TotalAmount = 2500m }
+                new() { Id = 1, FileHash = "hash1", FileName = "factura1.pdf", EmisorNombre = "Acme", ReceptorNombre = "Receptor1", TotalAmount = 1500.50m },
+                new() { Id = 2, FileHash = "hash2", FileName = "factura2.png", EmisorNombre = "Globex", ReceptorNombre = "Receptor2", TotalAmount = 2500m }
             };
 
             // Act
@@ -50,7 +50,7 @@ namespace RikiLoquitoContador.Tests
             var service = new ExportService();
             var facturas = new List<Factura>
             {
-                new() { Id = 1, FileName = "factura1.pdf", ClientName = "Acme", TotalAmount = 1500.50m }
+                new() { Id = 1, FileHash = "hash1", FileName = "factura1.pdf", EmisorNombre = "Acme", TotalAmount = 1500.50m }
             };
 
             // Act
@@ -71,8 +71,8 @@ namespace RikiLoquitoContador.Tests
             var service = new ExportService();
             var initialFacturas = new List<Factura>
             {
-                new() { Id = 1, FileName = "factura1.pdf", ClientName = "Acme", TotalAmount = 100m, FileSizeBytes = 1024 },
-                new() { Id = 2, FileName = "factura2.png", ClientName = "Globex", TotalAmount = 200m, FileSizeBytes = 2048 }
+                new() { Id = 1, FileHash = "hash1", FileName = "factura1.pdf", EmisorNombre = "Acme", TotalAmount = 100m, FileSizeBytes = 1024 },
+                new() { Id = 2, FileHash = "hash2", FileName = "factura2.png", EmisorNombre = "Globex", TotalAmount = 200m, FileSizeBytes = 2048 }
             };
 
             // Act - First export (Creates file)
@@ -86,16 +86,16 @@ namespace RikiLoquitoContador.Tests
                 var rowCount = sheet.LastRowUsed()?.RowNumber() ?? 0;
                 Assert.Equal(3, rowCount); // 1 Header row + 2 data rows
                 
-                var firstId = sheet.Cell(2, 1).Value.GetNumber();
-                Assert.Equal(1, firstId);
+                var firstHash = sheet.Cell(2, 1).Value.GetText();
+                Assert.Equal("hash1", firstHash);
             }
 
             // Arrange - Add one new factura and modify list
             var updatedFacturas = new List<Factura>
             {
-                new() { Id = 1, FileName = "factura1.pdf", ClientName = "Acme", TotalAmount = 100m, FileSizeBytes = 1024 },
-                new() { Id = 2, FileName = "factura2.png", ClientName = "Globex", TotalAmount = 200m, FileSizeBytes = 2048 },
-                new() { Id = 3, FileName = "factura3.pdf", ClientName = "Stark", TotalAmount = 300m, FileSizeBytes = 3072 } // New
+                new() { Id = 1, FileHash = "hash1", FileName = "factura1.pdf", EmisorNombre = "Acme", TotalAmount = 100m, FileSizeBytes = 1024 },
+                new() { Id = 2, FileHash = "hash2", FileName = "factura2.png", EmisorNombre = "Globex", TotalAmount = 200m, FileSizeBytes = 2048 },
+                new() { Id = 3, FileHash = "hash3", FileName = "factura3.pdf", EmisorNombre = "Stark", TotalAmount = 300m, FileSizeBytes = 3072 } // New
             };
 
             // Act - Second export (Appends only the new one)
@@ -108,11 +108,11 @@ namespace RikiLoquitoContador.Tests
                 var rowCount = sheet.LastRowUsed()?.RowNumber() ?? 0;
                 Assert.Equal(4, rowCount);
 
-                var thirdId = sheet.Cell(4, 1).Value.GetNumber();
-                Assert.Equal(3, thirdId);
+                var thirdHash = sheet.Cell(4, 1).Value.GetText();
+                Assert.Equal("hash3", thirdHash);
                 
-                var thirdClient = sheet.Cell(4, 8).Value.GetText();
-                Assert.Equal("Stark", thirdClient);
+                var thirdEmisor = sheet.Cell(4, 4).Value.GetText();
+                Assert.Equal("Stark", thirdEmisor);
             }
         }
 

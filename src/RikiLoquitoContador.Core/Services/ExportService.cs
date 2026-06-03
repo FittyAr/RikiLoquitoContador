@@ -36,7 +36,11 @@ namespace RikiLoquitoContador.Core.Services
             csv.WriteField("Tamano (Bytes)");
             csv.WriteField("Fecha Creacion");
             csv.WriteField("Fecha Indexado");
-            csv.WriteField("Cliente");
+            csv.WriteField("Emisor");
+            csv.WriteField("CUIT Emisor");
+            csv.WriteField("Receptor");
+            csv.WriteField("CUIT Receptor");
+            csv.WriteField("Condicion IVA Receptor");
             csv.WriteField("Monto Total");
             csv.WriteField("Comentarios");
             csv.NextRecord();
@@ -50,7 +54,11 @@ namespace RikiLoquitoContador.Core.Services
                 csv.WriteField(f.FileSizeBytes);
                 csv.WriteField(f.FileCreatedAt.ToString("g"));
                 csv.WriteField(f.IndexedAt.ToString("g"));
-                csv.WriteField(f.ClientName ?? "");
+                csv.WriteField(f.EmisorNombre ?? "");
+                csv.WriteField(f.EmisorCuit ?? "");
+                csv.WriteField(f.ReceptorNombre ?? "");
+                csv.WriteField(f.ReceptorCuit ?? "");
+                csv.WriteField(f.ReceptorVatType ?? "");
                 csv.WriteField(f.TotalAmount?.ToString("F2", CultureInfo.InvariantCulture) ?? "");
                 csv.WriteField(f.Comments ?? "");
                 csv.NextRecord();
@@ -84,7 +92,7 @@ namespace RikiLoquitoContador.Core.Services
                     {
                         XLWorkbook workbook;
                         IXLWorksheet worksheet;
-                        HashSet<int> existingIds = new();
+                        HashSet<string> existingHashes = new();
 
                         if (File.Exists(filePath))
                         {
@@ -107,14 +115,17 @@ namespace RikiLoquitoContador.Core.Services
                             worksheet = workbook.Worksheets.Add("Facturas");
                         }
 
+                        // Always ensure Column 1 is hidden
+                        worksheet.Column(1).Hide();
+
                         // If worksheet is empty (new workbook), write headers
                         var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
                         if (lastRow == 0)
                         {
                             string[] headers = {
-                                "ID", "Nombre de Archivo", "Ruta de Archivo", "Extension", 
-                                "Tamano (KB)", "Fecha Creacion", "Fecha Indexado", 
-                                "Cliente", "CUIT Cliente", "Condicion IVA", "Tipo Factura", 
+                                "Hash", "Fecha Creacion", "Fecha Indexado", 
+                                "Emisor", "CUIT Emisor", "Receptor", "CUIT Receptor", 
+                                "Condicion IVA Receptor", "Tipo Factura", 
                                 "Punto Venta", "Nro Comprobante", "Fecha Emision", "Monto Total", "Comentarios"
                             };
 
@@ -128,13 +139,13 @@ namespace RikiLoquitoContador.Core.Services
                         }
                         else
                         {
-                            // Read existing IDs to prevent duplicates
+                            // Read existing hashes to prevent duplicates
                             for (int r = 2; r <= lastRow; r++)
                             {
-                                var idCell = worksheet.Cell(r, 1).Value;
-                                if (idCell.IsNumber)
+                                var hashCell = worksheet.Cell(r, 1).Value;
+                                if (!hashCell.IsBlank)
                                 {
-                                    existingIds.Add((int)idCell.GetNumber());
+                                    existingHashes.Add(hashCell.ToString());
                                 }
                             }
                         }
@@ -145,44 +156,43 @@ namespace RikiLoquitoContador.Core.Services
 
                         foreach (var f in facturas)
                         {
-                            if (existingIds.Contains(f.Id))
+                            if (existingHashes.Contains(f.FileHash))
                             {
                                 continue; // Skip already exported invoice
                             }
 
-                            worksheet.Cell(writeRow, 1).Value = f.Id;
-                            worksheet.Cell(writeRow, 2).Value = f.FileName;
-                            worksheet.Cell(writeRow, 3).Value = f.FilePath;
-                            worksheet.Cell(writeRow, 4).Value = f.FileExtension;
-                            worksheet.Cell(writeRow, 5).Value = Math.Round((double)f.FileSizeBytes / 1024.0, 2);
-                            worksheet.Cell(writeRow, 6).Value = f.FileCreatedAt;
-                            worksheet.Cell(writeRow, 7).Value = f.IndexedAt;
-                            worksheet.Cell(writeRow, 8).Value = f.ClientName ?? "General";
-                            worksheet.Cell(writeRow, 9).Value = f.ClientCuit ?? "";
-                            worksheet.Cell(writeRow, 10).Value = f.ClientVatType ?? "";
-                            worksheet.Cell(writeRow, 11).Value = f.InvoiceType ?? "";
-                            worksheet.Cell(writeRow, 12).Value = f.PointOfSale ?? "";
-                            worksheet.Cell(writeRow, 13).Value = f.InvoiceNumber ?? "";
+                            worksheet.Cell(writeRow, 1).Value = f.FileHash;
+                            worksheet.Cell(writeRow, 2).Value = f.FileCreatedAt;
+                            worksheet.Cell(writeRow, 3).Value = f.IndexedAt.ToLocalTime();
+                            worksheet.Cell(writeRow, 4).Value = f.EmisorNombre ?? "General";
+                            worksheet.Cell(writeRow, 5).Value = f.EmisorCuit ?? "";
+                            worksheet.Cell(writeRow, 6).Value = f.ReceptorNombre ?? "";
+                            worksheet.Cell(writeRow, 7).Value = f.ReceptorCuit ?? "";
+                            worksheet.Cell(writeRow, 8).Value = f.ReceptorVatType ?? "";
+                            worksheet.Cell(writeRow, 9).Value = f.InvoiceType ?? "";
+                            worksheet.Cell(writeRow, 10).Value = f.PointOfSale ?? "";
+                            worksheet.Cell(writeRow, 11).Value = f.InvoiceNumber ?? "";
+                            
                             if (f.IssueDate.HasValue)
                             {
-                                worksheet.Cell(writeRow, 14).Value = f.IssueDate.Value;
+                                worksheet.Cell(writeRow, 12).Value = f.IssueDate.Value;
                             }
                             else
                             {
-                                worksheet.Cell(writeRow, 14).Value = "";
+                                worksheet.Cell(writeRow, 12).Value = "";
                             }
                             
                             if (f.TotalAmount.HasValue)
                             {
-                                worksheet.Cell(writeRow, 15).Value = (double)f.TotalAmount.Value;
-                                worksheet.Cell(writeRow, 15).Style.NumberFormat.Format = "$#,##0.00";
+                                worksheet.Cell(writeRow, 13).Value = (double)f.TotalAmount.Value;
+                                worksheet.Cell(writeRow, 13).Style.NumberFormat.Format = "$#,##0.00";
                             }
                             else
                             {
-                                worksheet.Cell(writeRow, 15).Value = "";
+                                worksheet.Cell(writeRow, 13).Value = "";
                             }
                             
-                            worksheet.Cell(writeRow, 16).Value = f.Comments ?? "";
+                            worksheet.Cell(writeRow, 14).Value = f.Comments ?? "";
 
                             writeRow++;
                             addedAny = true;

@@ -186,6 +186,24 @@
                                             Rutas absolutas del sistema para Entrada, Procesadas (por carpeta de cliente) y Conflictos (archivos fallidos).
                                         </MudText>
                                     </MudItem>
+
+                                    <!-- Clientes Contador CUIT -->
+                                    <MudItem xs="12">
+                                        <MudTextField @bind-Value="_clientesContadorCuit"
+                                                      Label="CUITs de Clientes del Contador (separados por coma)"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Placeholder="20123456789, 30765432109"
+                                                      Adornment="Adornment.Start"
+                                                      AdornmentIcon="@Icons.Material.Filled.People" />
+                                    </MudItem>
+                                    <MudItem xs="12">
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                            Ingresa los CUITs de los clientes del contador para clasificar las facturas en carpetas de Compras (Recibidas) o Ventas (Emitidas).
+                                        </MudText>
+                                    </MudItem>
+
                                     <MudItem xs="12" md="6">
                                         <MudNumericField @bind-Value="_scanInterval"
                                                          Label="Intervalo de Escaneo (Segundos)"
@@ -502,6 +520,7 @@
     private string _processedFolderPath = string.Empty;
     private string _conflictsFolderPath = string.Empty;
     private string _excelFilePath = string.Empty;
+    private string _clientesContadorCuit = string.Empty;
     private int _scanInterval = 10;
     private bool _directoryExists;
     private bool _processedDirExists;
@@ -561,6 +580,7 @@
         _excelFilePath = settings.ScanningSettings.ExcelFilePath;
         _processedFolderPath = settings.ScanningSettings.ProcessedFolderPath;
         _conflictsFolderPath = settings.ScanningSettings.ConflictsFolderPath;
+        _clientesContadorCuit = settings.ScanningSettings.ClientesContadorCuit ?? "";
         _scanInterval = settings.ScanningSettings.ScanIntervalSeconds;
 
         _selectedProvider = settings.AiSettings?.Provider ?? "OpenAI";
@@ -694,6 +714,7 @@
             settings.ScanningSettings.ExcelFilePath = _excelFilePath;
             settings.ScanningSettings.ProcessedFolderPath = _processedFolderPath;
             settings.ScanningSettings.ConflictsFolderPath = _conflictsFolderPath;
+            settings.ScanningSettings.ClientesContadorCuit = _clientesContadorCuit;
             settings.ScanningSettings.ScanIntervalSeconds = _scanInterval;
 
             // Update password if a new one is typed

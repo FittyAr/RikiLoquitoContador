@@ -25,6 +25,7 @@ namespace RikiLoquitoContador.Core.Models
         public string ExcelFilePath { get; set; } = string.Empty;
         public string ProcessedFolderPath { get; set; } = string.Empty;
         public string ConflictsFolderPath { get; set; } = string.Empty;
+        public string ClientesContadorCuit { get; set; } = string.Empty;
     }
 
     public class AiSettings

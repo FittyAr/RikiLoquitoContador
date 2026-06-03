@@ -76,7 +76,7 @@
                 <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Large" Class="mr-3" />
                 <div>
                     <MudText Typo="Typo.subtitle2">Clientes</MudText>
-                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_facturas.Select(f => f.ClientName).Distinct().Count(c => !string.IsNullOrEmpty(c))</MudText>
+                    <MudText Typo="Typo.h4" Style="font-weight: 700;">@_facturas.Select(f => f.EmisorNombre).Union(_facturas.Select(f => f.ReceptorNombre)).Distinct().Count(c => !string.IsNullOrEmpty(c))</MudText>
                 </div>
             </MudPaper>
         </MudItem>
@@ -175,7 +175,8 @@
                   Style="background: rgba(43, 43, 43, 0.5); color: white;">
             <HeaderContent>
                 <MudTh Style="color: #C2FE71; font-weight: 600;">@Localizer.T("Dashboard.Table.FileName")</MudTh>
-                <MudTh Style="color: #C2FE71; font-weight: 600;">@Localizer.T("Dashboard.Table.Client")</MudTh>
+                <MudTh Style="color: #C2FE71; font-weight: 600;">@Localizer.T("Dashboard.Table.Emisor")</MudTh>
+                <MudTh Style="color: #C2FE71; font-weight: 600;">@Localizer.T("Dashboard.Table.Receptor")</MudTh>
                 <MudTh Style="color: #C2FE71; font-weight: 600;">@Localizer.T("Dashboard.Table.Amount")</MudTh>
                 <MudTh Style="color: #C2FE71; font-weight: 600;">@Localizer.T("Dashboard.Table.Size")</MudTh>
                 <MudTh Style="color: #C2FE71; font-weight: 600;">@Localizer.T("Dashboard.Table.Date")</MudTh>
@@ -194,15 +195,23 @@
                         <span title="@context.FilePath">@context.FileName</span>
                     </div>
                 </MudTd>
-                <MudTd DataLabel="Cliente">
+                <MudTd DataLabel="Emisor">
                     <MudTooltip Text="@(string.IsNullOrEmpty(context.Comments) ? "Sin comentarios" : context.Comments)">
                         <MudChip T="string" 
-                                 Color="@(context.ClientName == "Fallo IA" ? Color.Error : Color.Success)" 
+                                 Color="@(context.EmisorNombre == "Fallo IA" ? Color.Error : Color.Success)" 
                                  Variant="Variant.Text" 
                                  Size="Size.Small">
-                            @(context.ClientName ?? "Sin asignar")
+                            @(context.EmisorNombre ?? "Sin asignar")
                         </MudChip>
                     </MudTooltip>
+                </MudTd>
+                <MudTd DataLabel="Receptor">
+                    <MudChip T="string" 
+                             Color="Color.Primary" 
+                             Variant="Variant.Text" 
+                             Size="Size.Small">
+                        @(context.ReceptorNombre ?? "Sin asignar")
+                    </MudChip>
                 </MudTd>
                 <MudTd DataLabel="Monto">
                     @if (context.TotalAmount.HasValue)
@@ -251,21 +260,25 @@
                 @if (_expandedInvoiceIds.Contains(context.Id))
                 {
                     <MudTr>
-                        <td colspan="7" style="padding: 16px; background: rgba(30, 30, 30, 0.4);">
+                        <td colspan="8" style="padding: 16px; background: rgba(30, 30, 30, 0.4);">
                             <div class="pa-4 rounded-lg" style="background: rgba(40, 40, 40, 0.7); border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); backdrop-filter: blur(5px);">
                                 <MudGrid Class="mb-4">
                                     <MudItem xs="12" md="6">
                                         <MudText Typo="Typo.subtitle1" Style="color: #C2FE71; font-weight: 700;" Class="mb-3">
-                                            Datos del Comprobante (Receptor)
+                                            Datos del Emisor y Receptor
                                         </MudText>
                                         <div class="d-flex flex-column gap-2">
                                             <div>
-                                                <span class="mud-text-secondary">CUIT: </span>
-                                                <span style="font-weight: 600;">@(context.ClientCuit ?? "-")</span>
+                                                <span class="mud-text-secondary">CUIT Emisor: </span>
+                                                <span style="font-weight: 600;">@(context.EmisorCuit ?? "-")</span>
                                             </div>
                                             <div>
-                                                <span class="mud-text-secondary">Condición IVA: </span>
-                                                <span style="font-weight: 600;">@(context.ClientVatType ?? "-")</span>
+                                                <span class="mud-text-secondary">CUIT Receptor: </span>
+                                                <span style="font-weight: 600;">@(context.ReceptorCuit ?? "-")</span>
+                                            </div>
+                                            <div>
+                                                <span class="mud-text-secondary">Condición IVA Receptor: </span>
+                                                <span style="font-weight: 600;">@(context.ReceptorVatType ?? "-")</span>
                                             </div>
                                             <div>
                                                 <span class="mud-text-secondary">Tipo Factura: </span>
@@ -387,28 +400,41 @@
                 <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Archivo: @_editingFactura?.FileName</MudText>
                 
                 <MudGrid>
-                     <MudItem xs="12" md="6">
-                         <MudTextField T="string"
-                                       Label="@Localizer.T("Dashboard.EditDialog.ClientLabel")"
-                                       @bind-Value="_editClientName"
-                                       Variant="Variant.Outlined"
-                                       Style="color: white;" />
-                     </MudItem>
-                     <MudItem xs="12" md="6">
-                         <MudTextField T="string"
-                                       Label="CUIT Cliente"
-                                       @bind-Value="_editClientCuit"
-                                       Variant="Variant.Outlined"
-                                       Style="color: white;" />
-                     </MudItem>
-
-                     <MudItem xs="12" md="6">
-                         <MudTextField T="string"
-                                       Label="Condición IVA Cliente"
-                                       @bind-Value="_editClientVatType"
-                                       Variant="Variant.Outlined"
-                                       Style="color: white;" />
-                     </MudItem>
+                      <MudItem xs="12" md="6">
+                          <MudTextField T="string"
+                                        Label="Nombre Emisor"
+                                        @bind-Value="_editEmisorNombre"
+                                        Variant="Variant.Outlined"
+                                        Style="color: white;" />
+                      </MudItem>
+                      <MudItem xs="12" md="6">
+                          <MudTextField T="string"
+                                        Label="CUIT Emisor"
+                                        @bind-Value="_editEmisorCuit"
+                                        Variant="Variant.Outlined"
+                                        Style="color: white;" />
+                      </MudItem>
+                      <MudItem xs="12" md="6">
+                          <MudTextField T="string"
+                                        Label="Nombre Receptor"
+                                        @bind-Value="_editReceptorNombre"
+                                        Variant="Variant.Outlined"
+                                        Style="color: white;" />
+                      </MudItem>
+                      <MudItem xs="12" md="6">
+                          <MudTextField T="string"
+                                        Label="CUIT Receptor"
+                                        @bind-Value="_editReceptorCuit"
+                                        Variant="Variant.Outlined"
+                                        Style="color: white;" />
+                      </MudItem>
+                      <MudItem xs="12" md="6">
+                          <MudTextField T="string"
+                                        Label="Condición IVA Receptor"
+                                        @bind-Value="_editReceptorVatType"
+                                        Variant="Variant.Outlined"
+                                        Style="color: white;" />
+                      </MudItem>
                      <MudItem xs="12" md="6">
                          <MudTextField T="string"
                                        Label="Tipo Factura"
@@ -548,9 +574,11 @@
     // Edit Modal State
     private bool _editDialogVisible;
     private Factura? _editingFactura;
-    private string _editClientName = string.Empty;
-    private string _editClientCuit = string.Empty;
-    private string _editClientVatType = string.Empty;
+    private string _editEmisorNombre = string.Empty;
+    private string _editEmisorCuit = string.Empty;
+    private string _editReceptorNombre = string.Empty;
+    private string _editReceptorCuit = string.Empty;
+    private string _editReceptorVatType = string.Empty;
     private string _editInvoiceType = string.Empty;
     private string _editPointOfSale = string.Empty;
     private string _editInvoiceNumber = string.Empty;
@@ -583,12 +611,13 @@
         {
             if (string.IsNullOrEmpty(_searchQuery)) return true;
             return f.FileName.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) || 
-                   (f.ClientName?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false);
+                   (f.EmisorNombre?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                   (f.ReceptorNombre?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false);
         })
         .Where(f => 
         {
             if (string.IsNullOrEmpty(_selectedClient)) return true;
-            return f.ClientName == _selectedClient;
+            return f.EmisorNombre == _selectedClient || f.ReceptorNombre == _selectedClient;
         })
         .OrderByDescending(f => f.IndexedAt);
 
@@ -623,9 +652,9 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             _facturas = await context.Facturas.Include(f => f.Detalles).ToListAsync();
             
-            _clients = _facturas
-                .Select(f => f.ClientName)
-                .Where(c => !string.IsNullOrWhiteSpace(c))
+            var emisorClients = _facturas.Select(f => f.EmisorNombre).Where(c => !string.IsNullOrWhiteSpace(c));
+            var receptorClients = _facturas.Select(f => f.ReceptorNombre).Where(c => !string.IsNullOrWhiteSpace(c));
+            _clients = emisorClients.Union(receptorClients)
                 .Distinct()
                 .OrderBy(c => c)
                 .ToList()!;
@@ -698,16 +727,18 @@
                                   aiResult.Comments.StartsWith("Fallo de conexión") ||
                                   aiResult.Comments.Contains("Error de conexión"));
 
-                dbFactura.ClientName = aiResult.ClientName ?? "Fallo IA";
+                dbFactura.EmisorNombre = aiResult.EmisorNombre ?? "Fallo IA";
+                dbFactura.EmisorCuit = aiResult.EmisorCuit;
+                dbFactura.ReceptorNombre = aiResult.ReceptorNombre;
+                dbFactura.ReceptorCuit = aiResult.ReceptorCuit;
+                dbFactura.ReceptorVatType = aiResult.ReceptorVatType;
                 dbFactura.TotalAmount = aiResult.TotalAmount;
                 dbFactura.Comments = aiResult.Comments;
                 dbFactura.InvoiceType = aiResult.InvoiceType;
                 dbFactura.PointOfSale = aiResult.PointOfSale;
                 dbFactura.InvoiceNumber = aiResult.InvoiceNumber;
                 dbFactura.IssueDate = aiResult.IssueDate;
-                dbFactura.ClientCuit = aiResult.ClientCuit;
-                dbFactura.ClientVatType = aiResult.ClientVatType;
-                dbFactura.Status = (hasAiError || string.IsNullOrEmpty(aiResult.ClientName)) ? "Conflict" : "Success";
+                dbFactura.Status = (hasAiError || (string.IsNullOrEmpty(aiResult.EmisorNombre) && string.IsNullOrEmpty(aiResult.ReceptorNombre))) ? "Conflict" : "Success";
                 dbFactura.ErrorMessage = hasAiError ? aiResult.Comments : null;
 
                 // Remove existing details
@@ -736,7 +767,8 @@
                     try
                     {
                         var fileInfo = new FileInfo(dbFactura.FilePath);
-                        string clientFolder = Path.Combine(settings.ScanningSettings.ProcessedFolderPath, CleanStringForFileName(aiResult.ClientName ?? "SinCliente"));
+                        string clientFolderName = GetClientFolderNameAndSubfolder(aiResult, settings.ScanningSettings, out string subfolder);
+                        string clientFolder = Path.Combine(settings.ScanningSettings.ProcessedFolderPath, clientFolderName, subfolder);
                         if (!Directory.Exists(clientFolder))
                         {
                             Directory.CreateDirectory(clientFolder);
@@ -804,9 +836,11 @@
     private void OpenEditDialog(Factura factura)
     {
         _editingFactura = factura;
-        _editClientName = factura.ClientName ?? "";
-        _editClientCuit = factura.ClientCuit ?? "";
-        _editClientVatType = factura.ClientVatType ?? "";
+        _editEmisorNombre = factura.EmisorNombre ?? "";
+        _editEmisorCuit = factura.EmisorCuit ?? "";
+        _editReceptorNombre = factura.ReceptorNombre ?? "";
+        _editReceptorCuit = factura.ReceptorCuit ?? "";
+        _editReceptorVatType = factura.ReceptorVatType ?? "";
         _editInvoiceType = factura.InvoiceType ?? "";
         _editPointOfSale = factura.PointOfSale ?? "";
         _editInvoiceNumber = factura.InvoiceNumber ?? "";
@@ -832,9 +866,11 @@
             var dbFactura = await context.Facturas.FindAsync(_editingFactura.Id);
             if (dbFactura != null)
             {
-                dbFactura.ClientName = _editClientName;
-                dbFactura.ClientCuit = _editClientCuit;
-                dbFactura.ClientVatType = _editClientVatType;
+                dbFactura.EmisorNombre = _editEmisorNombre;
+                dbFactura.EmisorCuit = _editEmisorCuit;
+                dbFactura.ReceptorNombre = _editReceptorNombre;
+                dbFactura.ReceptorCuit = _editReceptorCuit;
+                dbFactura.ReceptorVatType = _editReceptorVatType;
                 dbFactura.InvoiceType = _editInvoiceType;
                 dbFactura.PointOfSale = _editPointOfSale;
                 dbFactura.InvoiceNumber = _editInvoiceNumber;
@@ -849,22 +885,26 @@
                     {
                         var settings = ConfigService.GetSettings();
                         var fileInfo = new FileInfo(dbFactura.FilePath);
-                        string clientFolder = Path.Combine(settings.ScanningSettings.ProcessedFolderPath, CleanStringForFileName(dbFactura.ClientName ?? "SinCliente"));
-                        if (!Directory.Exists(clientFolder))
-                        {
-                            Directory.CreateDirectory(clientFolder);
-                        }
-
+                        
                         var dummyResult = new AiExtractionResult
                         {
-                            ClientName = dbFactura.ClientName,
-                            ClientCuit = dbFactura.ClientCuit,
-                            ClientVatType = dbFactura.ClientVatType,
+                            EmisorNombre = dbFactura.EmisorNombre,
+                            EmisorCuit = dbFactura.EmisorCuit,
+                            ReceptorNombre = dbFactura.ReceptorNombre,
+                            ReceptorCuit = dbFactura.ReceptorCuit,
+                            ReceptorVatType = dbFactura.ReceptorVatType,
                             InvoiceType = dbFactura.InvoiceType,
                             PointOfSale = dbFactura.PointOfSale,
                             InvoiceNumber = dbFactura.InvoiceNumber,
                             IssueDate = dbFactura.IssueDate
                         };
+
+                        string clientFolderName = GetClientFolderNameAndSubfolder(dummyResult, settings.ScanningSettings, out string subfolder);
+                        string clientFolder = Path.Combine(settings.ScanningSettings.ProcessedFolderPath, clientFolderName, subfolder);
+                        if (!Directory.Exists(clientFolder))
+                        {
+                            Directory.CreateDirectory(clientFolder);
+                        }
 
                         string logicalName = GetLogicalName(dummyResult, fileInfo.Name, fileInfo.Extension);
                         string destinationPath = Path.Combine(clientFolder, logicalName);
@@ -1081,15 +1121,45 @@
             string type = CleanStringForFileName(res.InvoiceType ?? "Factura");
             string pos = CleanStringForFileName(res.PointOfSale ?? "0000");
             string number = CleanStringForFileName(res.InvoiceNumber ?? "00000000");
-            string client = CleanStringForFileName(res.ClientName ?? "SinCliente");
-            string cuit = CleanStringForFileName(res.ClientCuit ?? "SinCUIT");
+            string emisor = CleanStringForFileName(res.EmisorNombre ?? "SinEmisor");
+            string receptor = CleanStringForFileName(res.ReceptorNombre ?? "SinReceptor");
             
-            return $"{dateStr}_{type}_{pos}-{number}_{client}_{cuit}{extension}";
+            return $"{dateStr}_{type}_{pos}-{number}_E-{emisor}_R-{receptor}{extension}";
         }
         catch
         {
             return $"{Path.GetFileNameWithoutExtension(originalName)}_{DateTime.Now:yyyyMMddHHmmss}{extension}";
         }
+    }
+
+    private string GetClientFolderNameAndSubfolder(AiExtractionResult res, ScanningSettings settings, out string subfolder)
+    {
+        var cuits = (settings.ClientesContadorCuit ?? "")
+            .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(c => new string(c.Where(char.IsDigit).ToArray()))
+            .Where(c => !string.IsNullOrEmpty(c))
+            .ToList();
+
+        string emisorCuitClean = new string((res.EmisorCuit ?? "").Where(char.IsDigit).ToArray());
+        string receptorCuitClean = new string((res.ReceptorCuit ?? "").Where(char.IsDigit).ToArray());
+
+        if (cuits.Count > 0)
+        {
+            if (!string.IsNullOrEmpty(emisorCuitClean) && cuits.Contains(emisorCuitClean))
+            {
+                subfolder = "Emitidas";
+                return CleanStringForFileName(res.EmisorNombre ?? "SinNombre");
+            }
+            if (!string.IsNullOrEmpty(receptorCuitClean) && cuits.Contains(receptorCuitClean))
+            {
+                subfolder = "Recibidas";
+                return CleanStringForFileName(res.ReceptorNombre ?? "SinNombre");
+            }
+        }
+
+        // Fallback if none matches or CUIT list is empty
+        subfolder = "General";
+        return CleanStringForFileName(res.EmisorNombre ?? "SinNombre");
     }
 
     private void HandleProcessingQueueChanged()

@@ -233,15 +233,45 @@ namespace RikiLoquitoContador.Core.Services
                 string type = CleanStringForFileName(res.InvoiceType ?? "Factura");
                 string pos = CleanStringForFileName(res.PointOfSale ?? "0000");
                 string number = CleanStringForFileName(res.InvoiceNumber ?? "00000000");
-                string client = CleanStringForFileName(res.ClientName ?? "SinCliente");
-                string cuit = CleanStringForFileName(res.ClientCuit ?? "SinCUIT");
+                string emisor = CleanStringForFileName(res.EmisorNombre ?? "SinEmisor");
+                string receptor = CleanStringForFileName(res.ReceptorNombre ?? "SinReceptor");
                 
-                return $"{dateStr}_{type}_{pos}-{number}_{client}_{cuit}{extension}";
+                return $"{dateStr}_{type}_{pos}-{number}_E-{emisor}_R-{receptor}{extension}";
             }
             catch
             {
                 return $"{Path.GetFileNameWithoutExtension(originalName)}_{DateTime.Now:yyyyMMddHHmmss}{extension}";
             }
+        }
+
+        private string GetClientFolderNameAndSubfolder(AiExtractionResult res, ScanningSettings settings, out string subfolder)
+        {
+            var cuits = (settings.ClientesContadorCuit ?? "")
+                .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(c => new string(c.Where(char.IsDigit).ToArray()))
+                .Where(c => !string.IsNullOrEmpty(c))
+                .ToList();
+
+            string emisorCuitClean = new string((res.EmisorCuit ?? "").Where(char.IsDigit).ToArray());
+            string receptorCuitClean = new string((res.ReceptorCuit ?? "").Where(char.IsDigit).ToArray());
+
+            if (cuits.Count > 0)
+            {
+                if (!string.IsNullOrEmpty(emisorCuitClean) && cuits.Contains(emisorCuitClean))
+                {
+                    subfolder = "Emitidas";
+                    return CleanStringForFileName(res.EmisorNombre ?? "SinNombre");
+                }
+                if (!string.IsNullOrEmpty(receptorCuitClean) && cuits.Contains(receptorCuitClean))
+                {
+                    subfolder = "Recibidas";
+                    return CleanStringForFileName(res.ReceptorNombre ?? "SinNombre");
+                }
+            }
+
+            // Fallback if none matches or CUIT list is empty
+            subfolder = "General";
+            return CleanStringForFileName(res.EmisorNombre ?? "SinNombre");
         }
 
         private string CleanStringForFileName(string name)
@@ -334,18 +364,22 @@ namespace RikiLoquitoContador.Core.Services
                     return null;
                 }
 
+                long fileLength = fileInfo.Length;
+                DateTime fileCreatedAt = fileInfo.CreationTime;
+
                 bool hasAiError = aiResult.Comments != null && 
                                  (aiResult.Comments.StartsWith("Error de API") || 
                                   aiResult.Comments.StartsWith("Fallo de conexión") ||
                                   aiResult.Comments.Contains("Error de conexión"));
 
-                if (hasAiError || string.IsNullOrEmpty(aiResult.ClientName))
+                if (hasAiError || (string.IsNullOrEmpty(aiResult.EmisorNombre) && string.IsNullOrEmpty(aiResult.ReceptorNombre)))
                 {
-                    throw new InvalidOperationException(aiResult.Comments ?? "La IA no pudo extraer el nombre del cliente.");
+                    throw new InvalidOperationException(aiResult.Comments ?? "La IA no pudo extraer los datos de emisor y receptor.");
                 }
 
                 // Move file to client folder under processed
-                string clientFolder = Path.Combine(processedFolder, CleanStringForFileName(aiResult.ClientName ?? "SinCliente"));
+                string clientFolderName = GetClientFolderNameAndSubfolder(aiResult, settings.ScanningSettings, out string subfolder);
+                string clientFolder = Path.Combine(processedFolder, clientFolderName, subfolder);
                 if (!Directory.Exists(clientFolder))
                 {
                     Directory.CreateDirectory(clientFolder);
@@ -367,10 +401,14 @@ namespace RikiLoquitoContador.Core.Services
                     FileName = Path.GetFileName(destinationPath),
                     FilePath = destinationPath,
                     FileExtension = fileInfo.Extension.ToLowerInvariant(),
-                    FileSizeBytes = new FileInfo(destinationPath).Length,
-                    FileCreatedAt = fileInfo.CreationTime,
+                    FileSizeBytes = fileLength,
+                    FileCreatedAt = fileCreatedAt,
                     IndexedAt = DateTime.UtcNow,
-                    ClientName = aiResult.ClientName,
+                    EmisorNombre = aiResult.EmisorNombre,
+                    EmisorCuit = aiResult.EmisorCuit,
+                    ReceptorNombre = aiResult.ReceptorNombre,
+                    ReceptorCuit = aiResult.ReceptorCuit,
+                    ReceptorVatType = aiResult.ReceptorVatType,
                     TotalAmount = aiResult.TotalAmount,
                     Comments = aiResult.Comments ?? string.Empty,
                     
@@ -379,8 +417,6 @@ namespace RikiLoquitoContador.Core.Services
                     PointOfSale = aiResult.PointOfSale,
                     InvoiceNumber = aiResult.InvoiceNumber,
                     IssueDate = aiResult.IssueDate,
-                    ClientCuit = aiResult.ClientCuit,
-                    ClientVatType = aiResult.ClientVatType,
                     ProcessedPath = destinationPath,
                     Status = "Success",
                     ErrorMessage = null
@@ -404,8 +440,8 @@ namespace RikiLoquitoContador.Core.Services
 
                 context.Facturas.Add(factura);
                 await context.SaveChangesAsync();
-                _logger.LogInformation("Indexed new invoice: {FileName} with client {ClientName} and total {TotalAmount}", 
-                    factura.FileName, factura.ClientName, factura.TotalAmount);
+                _logger.LogInformation("Indexed new invoice: {FileName} with emisor {EmisorName}, receptor {ReceptorName} and total {TotalAmount}", 
+                    factura.FileName, factura.EmisorNombre, factura.ReceptorNombre, factura.TotalAmount);
 
                 // Auto-sync to Excel
                 var excelPath = settings.ScanningSettings.ExcelFilePath;
@@ -432,6 +468,9 @@ namespace RikiLoquitoContador.Core.Services
                 {
                     if (File.Exists(filePath) && fileInfo != null)
                     {
+                        long fileLength = fileInfo.Length;
+                        DateTime fileCreatedAt = fileInfo.CreationTime;
+
                         string conflictPath = Path.Combine(conflictsFolder, fileInfo.Name);
                         if (File.Exists(conflictPath))
                         {
@@ -444,10 +483,10 @@ namespace RikiLoquitoContador.Core.Services
                             FileName = Path.GetFileName(conflictPath),
                             FilePath = conflictPath,
                             FileExtension = fileInfo.Extension.ToLowerInvariant(),
-                            FileSizeBytes = new FileInfo(conflictPath).Length,
-                            FileCreatedAt = fileInfo.CreationTime,
+                            FileSizeBytes = fileLength,
+                            FileCreatedAt = fileCreatedAt,
                             IndexedAt = DateTime.UtcNow,
-                            ClientName = "Fallo IA",
+                            EmisorNombre = "Fallo IA",
                             TotalAmount = null,
                             Comments = ex.Message,
                             

@@ -80,7 +80,7 @@ namespace RikiLoquitoContador.Tests
             var pdfFactura = facturas.FirstOrDefault(f => f.FileExtension == ".pdf");
             Assert.NotNull(pdfFactura);
             Assert.Equal(".pdf", pdfFactura.FileExtension);
-            Assert.Equal("Factura", pdfFactura.ClientName); // By client name extraction heuristic "factura"
+            Assert.Equal("Factura", pdfFactura.EmisorNombre); // By emisor name extraction heuristic "factura"
 
             var txtFactura = facturas.FirstOrDefault(f => f.FileName == "documento_ignorado.txt");
             Assert.Null(txtFactura); // TXT should be ignored
@@ -126,15 +126,17 @@ namespace RikiLoquitoContador.Tests
             }
             return Task.FromResult(new AiExtractionResult
             {
-                ClientName = client,
+                EmisorNombre = client,
+                EmisorCuit = "30123456789",
+                ReceptorNombre = "ReceptorTest",
+                ReceptorCuit = "20301018135",
+                ReceptorVatType = "Monotributista",
                 TotalAmount = 100.00m,
                 Comments = "Comentario de prueba",
                 InvoiceType = "Factura C",
                 PointOfSale = "0001",
                 InvoiceNumber = "00000001",
                 IssueDate = DateTime.Today,
-                ClientCuit = "20301018135",
-                ClientVatType = "Monotributista",
                 Items = new List<FacturaDetalleDto>
                 {
                     new FacturaDetalleDto { Description = "Item 1", Quantity = 1.0m, UnitPrice = 100.00m, Subtotal = 100.00m, VatRate = 0.0m }
