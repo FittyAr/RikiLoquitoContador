@@ -20,8 +20,10 @@ Para evitar confusiones en la extracción de datos:
 Extrae los siguientes campos:
 1. **EmisorNombre**: Razón Social o Nombre del Emisor.
 2. **EmisorCuit**: CUIT del Emisor (solo dígitos numéricos, sin guiones ni espacios).
+   *Guía para extracción en texto desordenado*: Es un número de 11 dígitos que suele figurar en la parte superior. A veces se extrae mezclado con fechas (ej. en una serie de fechas y números, identifica el de 11 dígitos).
 3. **ReceptorNombre**: Razón Social o Nombre del Receptor.
 4. **ReceptorCuit**: CUIT del Receptor (solo dígitos numéricos, sin guiones ni espacios).
+   *Guía para extracción en texto desordenado*: Es un número de 11 dígitos que suele ser el segundo CUIT del documento y se encuentra en el recuadro medio junto a los datos del receptor. No repitas el CUIT del emisor aquí.
 5. **ReceptorVatType**: Condición frente al IVA del Receptor (ej. Responsable Inscripto, Monotributista, Consumidor Final, Exento).
 6. **TotalAmount**: Monto total final facturado como número decimal (utilizando punto `.` como separador decimal, sin símbolos de moneda).
 7. **InvoiceType**: Tipo de factura o comprobante (ej. Factura A, Factura B, Factura C, Factura M, Nota de Crédito A, etc.). **NO** incluyas el código numérico interno de AFIP (por ejemplo, extrae `Factura C` en lugar de `COD. 011`).
