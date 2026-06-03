@@ -7,11 +7,11 @@ namespace RikiLoquitoContador.Core.Services
     {
         /// <summary>
         /// Analiza de forma asíncrona un archivo de factura (imagen, PDF o DOCX) usando IA
-        /// y extrae el nombre del cliente, monto total y comentarios estructurados.
+        /// y extrae la información extendida de la factura.
         /// </summary>
         /// <param name="filePath">Ruta absoluta del archivo a analizar.</param>
-        /// <returns>Una tupla con el Nombre del Cliente, Monto Total y Comentarios extraídos.</returns>
-        Task<(string? ClientName, decimal? TotalAmount, string? Comments)> AnalyzeInvoiceAsync(string filePath);
+        /// <returns>Un objeto AiExtractionResult con los datos extraídos.</returns>
+        Task<AiExtractionResult> AnalyzeInvoiceAsync(string filePath);
 
         /// <summary>
         /// Consulta los modelos disponibles en el proveedor local (por ejemplo, Ollama).
@@ -20,5 +20,28 @@ namespace RikiLoquitoContador.Core.Services
         /// <param name="endpoint">El endpoint configurado.</param>
         /// <returns>Una lista con los nombres de los modelos disponibles.</returns>
         Task<List<string>> GetAvailableModelsAsync(string provider, string endpoint);
+    }
+
+    public class AiExtractionResult
+    {
+        public string? ClientName { get; set; }
+        public decimal? TotalAmount { get; set; }
+        public string? Comments { get; set; }
+        public string? InvoiceType { get; set; }
+        public string? PointOfSale { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public System.DateTime? IssueDate { get; set; }
+        public string? ClientCuit { get; set; }
+        public string? ClientVatType { get; set; }
+        public System.Collections.Generic.List<FacturaDetalleDto> Items { get; set; } = new();
+    }
+
+    public class FacturaDetalleDto
+    {
+        public string Description { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal Subtotal { get; set; }
+        public decimal? VatRate { get; set; }
     }
 }

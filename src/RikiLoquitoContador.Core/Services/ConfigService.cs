@@ -57,9 +57,9 @@ namespace RikiLoquitoContador.Core.Services
                 }
             }
 #else
-            // In production, save in %programdata%/RikiLoquitoContador/appsettings.json
+            // In production, save in %programdata%/RikiLoquitoContadorApp/appsettings.json
             string programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            _settingsFilePath = Path.Combine(programData, "RikiLoquitoContador", "appsettings.json");
+            _settingsFilePath = Path.Combine(programData, "RikiLoquitoContadorApp", "appsettings.json");
 
             // Write default configuration if it does not exist
             if (!File.Exists(_settingsFilePath))
@@ -72,13 +72,16 @@ namespace RikiLoquitoContador.Core.Services
                         Directory.CreateDirectory(directory);
                     }
 
+                    string appDataDir = Path.Combine(programData, "RikiLoquitoContadorApp");
                     var defaultSettings = new AppSettings();
                     // Default to 'contador123'
                     defaultSettings.SecuritySettings.PasswordHash = "$2a$11$9/X4yDqC3G3bYfCdfp/juef6u8bQ/bK1dM1oF3L0H5U1tT8rP/Cxe";
-                    defaultSettings.ScanningSettings.WatchFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "FacturasContador");
-                    defaultSettings.ScanningSettings.ExcelFilePath = Path.Combine(defaultSettings.ScanningSettings.WatchFolderPath, "FacturasSincronizadas.xlsx");
+                    defaultSettings.ScanningSettings.WatchFolderPath = Path.Combine(appDataDir, "Entrada");
+                    defaultSettings.ScanningSettings.ProcessedFolderPath = Path.Combine(appDataDir, "Procesadas");
+                    defaultSettings.ScanningSettings.ConflictsFolderPath = Path.Combine(appDataDir, "Conflictos");
+                    defaultSettings.ScanningSettings.ExcelFilePath = Path.Combine(appDataDir, "FacturasSincronizadas.xlsx");
                     defaultSettings.ScanningSettings.ScanIntervalSeconds = 10;
-                    defaultSettings.ConnectionStrings.DefaultConnection = $"Data Source={Path.Combine(directory ?? "", "facturas.db")}";
+                    defaultSettings.ConnectionStrings.DefaultConnection = $"Data Source={Path.Combine(appDataDir, "facturas.db")}";
 
                     var json = JsonSerializer.Serialize(defaultSettings, new JsonSerializerOptions { WriteIndented = true });
                     File.WriteAllText(_settingsFilePath, json);
@@ -91,6 +94,37 @@ namespace RikiLoquitoContador.Core.Services
 #endif
 
             LoadSettings();
+            EnsureFolderDirectoriesExist();
+        }
+
+        private void EnsureFolderDirectoriesExist()
+        {
+            try
+            {
+                var settings = _cachedSettings;
+                if (settings?.ScanningSettings != null)
+                {
+                    var watch = settings.ScanningSettings.WatchFolderPath;
+                    if (!string.IsNullOrWhiteSpace(watch) && !Directory.Exists(watch))
+                    {
+                        Directory.CreateDirectory(watch);
+                    }
+                    var proc = settings.ScanningSettings.ProcessedFolderPath;
+                    if (!string.IsNullOrWhiteSpace(proc) && !Directory.Exists(proc))
+                    {
+                        Directory.CreateDirectory(proc);
+                    }
+                    var conf = settings.ScanningSettings.ConflictsFolderPath;
+                    if (!string.IsNullOrWhiteSpace(conf) && !Directory.Exists(conf))
+                    {
+                        Directory.CreateDirectory(conf);
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback silently if unable to create directories
+            }
         }
 
         private void LoadSettings()
@@ -137,6 +171,12 @@ namespace RikiLoquitoContador.Core.Services
             var excelPath = _configuration["ScanningSettings:ExcelFilePath"];
             if (excelPath != null) _cachedSettings.ScanningSettings.ExcelFilePath = excelPath;
 
+            var processedFolder = _configuration["ScanningSettings:ProcessedFolderPath"];
+            if (processedFolder != null) _cachedSettings.ScanningSettings.ProcessedFolderPath = processedFolder;
+
+            var conflictsFolder = _configuration["ScanningSettings:ConflictsFolderPath"];
+            if (conflictsFolder != null) _cachedSettings.ScanningSettings.ConflictsFolderPath = conflictsFolder;
+
             var intervalStr = _configuration["ScanningSettings:ScanIntervalSeconds"];
             if (int.TryParse(intervalStr, out int interval))
             {
@@ -162,6 +202,8 @@ namespace RikiLoquitoContador.Core.Services
             _cachedSettings.SecuritySettings.PasswordHash = _configuration["SecuritySettings:PasswordHash"] ?? string.Empty;
             _cachedSettings.ScanningSettings.WatchFolderPath = _configuration["ScanningSettings:WatchFolderPath"] ?? string.Empty;
             _cachedSettings.ScanningSettings.ExcelFilePath = _configuration["ScanningSettings:ExcelFilePath"] ?? string.Empty;
+            _cachedSettings.ScanningSettings.ProcessedFolderPath = _configuration["ScanningSettings:ProcessedFolderPath"] ?? string.Empty;
+            _cachedSettings.ScanningSettings.ConflictsFolderPath = _configuration["ScanningSettings:ConflictsFolderPath"] ?? string.Empty;
             
             if (int.TryParse(_configuration["ScanningSettings:ScanIntervalSeconds"], out int interval))
             {
@@ -201,6 +243,7 @@ namespace RikiLoquitoContador.Core.Services
                     WriteIndented = true
                 });
                 File.WriteAllText(_settingsFilePath, json);
+                EnsureFolderDirectoriesExist();
             }
             catch (Exception ex)
             {

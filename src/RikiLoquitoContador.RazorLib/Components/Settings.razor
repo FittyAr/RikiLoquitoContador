@@ -1,8 +1,12 @@
+@using Microsoft.EntityFrameworkCore
+@using RikiLoquitoContador.Core.Data
+@using RikiLoquitoContador.Core.Models
 @inject IConfigService ConfigService
 @inject IFileScannerService FileScanner
 @inject IAiService AiService
 @inject II18nService Localizer
 @inject ISnackbar Snackbar
+@inject IDbContextFactory<AppDbContext> DbContextFactory
 
 <style>
     /* Styling for the MudTabs vertical container */
@@ -108,6 +112,7 @@
                                 </div>
 
                                 <MudGrid>
+                                    <!-- Entrada -->
                                     <MudItem xs="12" md="9">
                                         <MudTextField @bind-Value="_watchFolderPath"
                                                       Label="@Localizer.T("Settings.FolderPath")"
@@ -115,7 +120,7 @@
                                                       Margin="Margin.Dense"
                                                       Style="color: white;"
                                                       Required="true"
-                                                      Placeholder="C:\FacturasContador"
+                                                      Placeholder="C:\FacturasContador\Entrada"
                                                       Adornment="Adornment.Start"
                                                       AdornmentIcon="@Icons.Material.Filled.Folder" />
                                     </MudItem>
@@ -129,9 +134,56 @@
                                             <MudChip T="string" Color="Color.Warning" Variant="Variant.Text" Icon="@Icons.Material.Filled.Warning">No existe</MudChip>
                                         }
                                     </MudItem>
+
+                                    <!-- Procesadas -->
+                                    <MudItem xs="12" md="9">
+                                        <MudTextField @bind-Value="_processedFolderPath"
+                                                      Label="@Localizer.T("Settings.ProcessedFolderPath")"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Required="true"
+                                                      Placeholder="C:\FacturasContador\Procesadas"
+                                                      Adornment="Adornment.Start"
+                                                      AdornmentIcon="@Icons.Material.Filled.FolderSpecial" />
+                                    </MudItem>
+                                    <MudItem xs="12" md="3" Class="d-flex align-center">
+                                        @if (_processedDirExists)
+                                        {
+                                            <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CheckCircle">Existe</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Color="Color.Warning" Variant="Variant.Text" Icon="@Icons.Material.Filled.Warning">No existe</MudChip>
+                                        }
+                                    </MudItem>
+
+                                    <!-- Conflictos -->
+                                    <MudItem xs="12" md="9">
+                                        <MudTextField @bind-Value="_conflictsFolderPath"
+                                                      Label="@Localizer.T("Settings.ConflictsFolderPath")"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Required="true"
+                                                      Placeholder="C:\FacturasContador\Conflictos"
+                                                      Adornment="Adornment.Start"
+                                                      AdornmentIcon="@Icons.Material.Filled.ReportGmailerrorred" />
+                                    </MudItem>
+                                    <MudItem xs="12" md="3" Class="d-flex align-center">
+                                        @if (_conflictsDirExists)
+                                        {
+                                            <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CheckCircle">Existe</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Color="Color.Warning" Variant="Variant.Text" Icon="@Icons.Material.Filled.Warning">No existe</MudChip>
+                                        }
+                                    </MudItem>
+
                                     <MudItem xs="12">
                                         <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                            La carpeta donde el contador depositará las facturas en formato JPG, PNG, PDF o DOCX.
+                                            Rutas absolutas del sistema para Entrada, Procesadas (por carpeta de cliente) y Conflictos (archivos fallidos).
                                         </MudText>
                                     </MudItem>
                                     <MudItem xs="12" md="6">
@@ -347,6 +399,84 @@
                         </div>
                     </MudTabPanel>
 
+                    <!-- PESTAÑA 4: TABLAS IMPOSITIVAS -->
+                    <MudTabPanel Text="@Localizer.T("Settings.AfipSection.Title")" Icon="@Icons.Material.Filled.ReceiptLong">
+                        <div class="px-6 py-4 d-flex flex-column gap-6">
+                            <MudGrid>
+                                <!-- Tipos de Comprobantes -->
+                                <MudItem xs="12" md="6">
+                                    <div class="d-flex align-center justify-space-between mb-3">
+                                        <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                                            @Localizer.T("Settings.AfipSection.InvoiceTypesTab")
+                                        </MudText>
+                                    </div>
+                                    
+                                    <div class="d-flex gap-2 mb-3 align-center">
+                                        <MudTextField @bind-Value="_newInvoiceCode" Label="Código" Placeholder="011" Margin="Margin.Dense" Variant="Variant.Outlined" Style="color: white; max-width: 80px;" />
+                                        <MudTextField @bind-Value="_newInvoiceDesc" Label="Descripción" Placeholder="Factura C" Margin="Margin.Dense" Variant="Variant.Outlined" Style="color: white; flex-grow: 1;" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Success" OnClick="AddInvoiceType" Size="Size.Medium" Style="margin-top: 4px;" />
+                                    </div>
+
+                                    <MudTable Items="_invoiceTypes" Dense="true" Hover="true" MaxHeight="300px" Style="background: rgba(43, 43, 43, 0.4); color: white;">
+                                        <HeaderContent>
+                                            <MudTh Style="color: #C2FE71;">@Localizer.T("Settings.AfipSection.Code")</MudTh>
+                                            <MudTh Style="color: #C2FE71;">@Localizer.T("Settings.AfipSection.Description")</MudTh>
+                                            <MudTh Style="color: #C2FE71; text-align: center; width: 60px;">@Localizer.T("Settings.AfipSection.Actions")</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd>@context.Codigo</MudTd>
+                                            <MudTd title="@context.Descripcion">@context.Descripcion</MudTd>
+                                            <MudTd Style="text-align: center;">
+                                                @if (context.IsCustom)
+                                                {
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteInvoiceType(context.Id))" />
+                                                }
+                                                else
+                                                {
+                                                    <span style="font-size: 0.75rem; color: rgba(255,255,255,0.3);">Fijo</span>
+                                                }
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </MudItem>
+
+                                <!-- Categorias de IVA -->
+                                <MudItem xs="12" md="6">
+                                    <div class="d-flex align-center justify-space-between mb-3">
+                                        <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                                            @Localizer.T("Settings.AfipSection.VatTypesTab")
+                                        </MudText>
+                                    </div>
+
+                                    <div class="d-flex gap-2 mb-3 align-center">
+                                        <MudTextField @bind-Value="_newVatDesc" Label="Descripción IVA" Placeholder="Monotributista Social" Margin="Margin.Dense" Variant="Variant.Outlined" Style="color: white; flex-grow: 1;" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Success" OnClick="AddVatType" Size="Size.Medium" Style="margin-top: 4px;" />
+                                    </div>
+
+                                    <MudTable Items="_vatTypes" Dense="true" Hover="true" MaxHeight="300px" Style="background: rgba(43, 43, 43, 0.4); color: white;">
+                                        <HeaderContent>
+                                            <MudTh Style="color: #C2FE71;">@Localizer.T("Settings.AfipSection.Description")</MudTh>
+                                            <MudTh Style="color: #C2FE71; text-align: center; width: 60px;">@Localizer.T("Settings.AfipSection.Actions")</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd title="@context.Descripcion">@context.Descripcion</MudTd>
+                                            <MudTd Style="text-align: center;">
+                                                @if (context.IsCustom)
+                                                {
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteVatType(context.Id))" />
+                                                }
+                                                else
+                                                {
+                                                    <span style="font-size: 0.75rem; color: rgba(255,255,255,0.3);">Fijo</span>
+                                                }
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </MudItem>
+                            </MudGrid>
+                        </div>
+                    </MudTabPanel>
+
                 </MudTabs>
             </MudForm>
         </MudCardContent>
@@ -369,9 +499,13 @@
     private MudForm? _form;
     private bool _isValid;
     private string _watchFolderPath = string.Empty;
+    private string _processedFolderPath = string.Empty;
+    private string _conflictsFolderPath = string.Empty;
     private string _excelFilePath = string.Empty;
     private int _scanInterval = 10;
     private bool _directoryExists;
+    private bool _processedDirExists;
+    private bool _conflictsDirExists;
     private bool _excelDirExists;
 
     // Security (Password)
@@ -393,6 +527,13 @@
     private List<string> _ollamaModels = new();
     private bool _scanningModels = false;
 
+    // AFIP & IVA Tables
+    private List<TipoFactura> _invoiceTypes = new();
+    private List<TipoIva> _vatTypes = new();
+    private string _newInvoiceCode = string.Empty;
+    private string _newInvoiceDesc = string.Empty;
+    private string _newVatDesc = string.Empty;
+
     private struct AiPreset
     {
         public string Endpoint { get; set; }
@@ -413,11 +554,13 @@
         { "Personalizado", new AiPreset { Endpoint = "", ModelName = "" } }
     };
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         var settings = ConfigService.GetSettings();
         _watchFolderPath = settings.ScanningSettings.WatchFolderPath;
         _excelFilePath = settings.ScanningSettings.ExcelFilePath;
+        _processedFolderPath = settings.ScanningSettings.ProcessedFolderPath;
+        _conflictsFolderPath = settings.ScanningSettings.ConflictsFolderPath;
         _scanInterval = settings.ScanningSettings.ScanIntervalSeconds;
 
         _selectedProvider = settings.AiSettings?.Provider ?? "OpenAI";
@@ -426,11 +569,29 @@
         _aiApiKey = settings.AiSettings?.ApiKey ?? "";
 
         CheckDirectoryExists();
+        await LoadTaxTablesAsync();
+    }
+
+    private async Task LoadTaxTablesAsync()
+    {
+        try
+        {
+            using var db = await DbContextFactory.CreateDbContextAsync();
+            _invoiceTypes = await db.TipoFacturas.OrderBy(t => t.Codigo).ToListAsync();
+            _vatTypes = await db.TipoIvas.OrderBy(t => t.Descripcion).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error cargando tablas impositivas: {ex.Message}", Severity.Error);
+        }
     }
 
     private void CheckDirectoryExists()
     {
         _directoryExists = !string.IsNullOrWhiteSpace(_watchFolderPath) && System.IO.Directory.Exists(_watchFolderPath);
+        _processedDirExists = !string.IsNullOrWhiteSpace(_processedFolderPath) && System.IO.Directory.Exists(_processedFolderPath);
+        _conflictsDirExists = !string.IsNullOrWhiteSpace(_conflictsFolderPath) && System.IO.Directory.Exists(_conflictsFolderPath);
+        
         if (!string.IsNullOrWhiteSpace(_excelFilePath))
         {
             try
@@ -531,6 +692,8 @@
             // Update scanning settings
             settings.ScanningSettings.WatchFolderPath = _watchFolderPath;
             settings.ScanningSettings.ExcelFilePath = _excelFilePath;
+            settings.ScanningSettings.ProcessedFolderPath = _processedFolderPath;
+            settings.ScanningSettings.ConflictsFolderPath = _conflictsFolderPath;
             settings.ScanningSettings.ScanIntervalSeconds = _scanInterval;
 
             // Update password if a new one is typed
@@ -586,6 +749,118 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Error al guardar la configuración: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task AddInvoiceType()
+    {
+        if (string.IsNullOrWhiteSpace(_newInvoiceCode) || string.IsNullOrWhiteSpace(_newInvoiceDesc))
+        {
+            Snackbar.Add("Debe ingresar el código y la descripción.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            using var db = await DbContextFactory.CreateDbContextAsync();
+            var exists = await db.TipoFacturas.AnyAsync(t => t.Codigo == _newInvoiceCode);
+            if (exists)
+            {
+                Snackbar.Add("Ya existe un comprobante con ese código.", Severity.Warning);
+                return;
+            }
+
+            db.TipoFacturas.Add(new TipoFactura
+            {
+                Codigo = _newInvoiceCode.Trim(),
+                Descripcion = _newInvoiceDesc.Trim(),
+                IsCustom = true
+            });
+            await db.SaveChangesAsync();
+
+            _newInvoiceCode = string.Empty;
+            _newInvoiceDesc = string.Empty;
+            Snackbar.Add("Tipo de comprobante agregado con éxito.", Severity.Success);
+            await LoadTaxTablesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al agregar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteInvoiceType(int id)
+    {
+        try
+        {
+            using var db = await DbContextFactory.CreateDbContextAsync();
+            var item = await db.TipoFacturas.FindAsync(id);
+            if (item != null && item.IsCustom)
+            {
+                db.TipoFacturas.Remove(item);
+                await db.SaveChangesAsync();
+                Snackbar.Add("Comprobante eliminado.", Severity.Success);
+                await LoadTaxTablesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al eliminar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task AddVatType()
+    {
+        if (string.IsNullOrWhiteSpace(_newVatDesc))
+        {
+            Snackbar.Add("Debe ingresar la descripción.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            using var db = await DbContextFactory.CreateDbContextAsync();
+            var exists = await db.TipoIvas.AnyAsync(t => t.Descripcion == _newVatDesc);
+            if (exists)
+            {
+                Snackbar.Add("Ya existe esa categoría de IVA.", Severity.Warning);
+                return;
+            }
+
+            db.TipoIvas.Add(new TipoIva
+            {
+                Descripcion = _newVatDesc.Trim(),
+                IsCustom = true
+            });
+            await db.SaveChangesAsync();
+
+            _newVatDesc = string.Empty;
+            Snackbar.Add("Categoría de IVA agregada con éxito.", Severity.Success);
+            await LoadTaxTablesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al agregar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteVatType(int id)
+    {
+        try
+        {
+            using var db = await DbContextFactory.CreateDbContextAsync();
+            var item = await db.TipoIvas.FindAsync(id);
+            if (item != null && item.IsCustom)
+            {
+                db.TipoIvas.Remove(item);
+                await db.SaveChangesAsync();
+                Snackbar.Add("Categoría de IVA eliminada.", Severity.Success);
+                await LoadTaxTablesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al eliminar: {ex.Message}", Severity.Error);
         }
     }
 }

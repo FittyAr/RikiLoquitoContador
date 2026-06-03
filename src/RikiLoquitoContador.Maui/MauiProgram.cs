@@ -55,6 +55,7 @@ public static class MauiProgram
 			var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
 			using var db = dbContextFactory.CreateDbContext();
 			db.Database.EnsureCreated();
+			DbInitializer.Seed(db);
 		}
 
 		return app;

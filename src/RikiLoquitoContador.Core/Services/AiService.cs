@@ -27,31 +27,71 @@ namespace RikiLoquitoContador.Core.Services
             _logger = logger;
         }
 
-        public async Task<(string? ClientName, decimal? TotalAmount, string? Comments)> AnalyzeInvoiceAsync(string filePath)
+        public async Task<AiExtractionResult> AnalyzeInvoiceAsync(string filePath)
         {
             if (!File.Exists(filePath))
             {
                 _logger.LogWarning("File not found for AI analysis: {FilePath}", filePath);
-                return (null, null, "Archivo no encontrado.");
+                return new AiExtractionResult { Comments = "Archivo no encontrado." };
             }
 
             var settings = _configService.GetSettings();
             var aiSettings = settings.AiSettings;
 
             bool isLocalProvider = aiSettings.Provider != null && 
-                                  (aiSettings.Provider.Contains("Ollama") || 
-                                   aiSettings.Provider.Contains("LM Studio") || 
-                                   aiSettings.Provider.Contains("Compatible"));
+                                   (aiSettings.Provider.Contains("Ollama") || 
+                                    aiSettings.Provider.Contains("LM Studio") || 
+                                    aiSettings.Provider.Contains("Compatible"));
 
             if (!isLocalProvider && string.IsNullOrWhiteSpace(aiSettings.ApiKey))
             {
                 _logger.LogWarning("AI API Key is not configured in settings.");
-                return (null, null, "Error: La API Key de la IA no está configurada.");
+                return new AiExtractionResult { Comments = "Error: La API Key de la IA no está configurada." };
             }
 
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
             bool isOllamaNative = aiSettings.Provider == "Ollama" || (aiSettings.Endpoint != null && aiSettings.Endpoint.Contains("/api/chat"));
             
+            string prompt = "Analiza los datos de la factura e identifica los siguientes datos del RECEPTOR de la factura (a quien le facturan, NO el emisor):\n" +
+                            "1. El nombre o razón social del cliente/comprador (ClientName)\n" +
+                            "2. El CUIT del cliente/comprador (ClientCuit)\n" +
+                            "3. La condición de IVA del cliente/comprador (ClientVatType, ej. Responsable Inscripto, Monotributista, Consumidor Final, Exento)\n" +
+                            "También identifica los siguientes datos del comprobante:\n" +
+                            "4. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal\n" +
+                            "5. El tipo de factura (InvoiceType, ej. Factura A, Factura B, Factura C, Factura M, Nota de Crédito A, etc.)\n" +
+                            "6. El número de punto de venta como string (PointOfSale, ej. 00011 o 11)\n" +
+                            "7. El número de comprobante como string (InvoiceNumber, ej. 00000006 o 6)\n" +
+                            "8. La fecha de emisión (IssueDate, en formato YYYY-MM-DD)\n" +
+                            "9. Un resumen muy breve de los conceptos o comentarios generales (Comments)\n" +
+                            "10. La lista de ítems detallados de productos o servicios (Items), donde cada ítem tiene:\n" +
+                            "    - Description: Descripción del concepto/producto/servicio\n" +
+                            "    - Quantity: Cantidad (número decimal, ej. 1.0)\n" +
+                            "    - UnitPrice: Precio unitario (número decimal, ej. 1500.00)\n" +
+                            "    - Subtotal: Subtotal (cantidad * precio unitario, número decimal)\n" +
+                            "    - VatRate: Tasa de IVA aplicable (número decimal, ej. 21.0, 10.5, 27.0, 0.0)\n\n" +
+                            "DEBES retornar ÚNICAMENTE un objeto JSON válido con el siguiente esquema exacto:\n" +
+                            "{\n" +
+                            "  \"ClientName\": \"string\",\n" +
+                            "  \"TotalAmount\": 123.45,\n" +
+                            "  \"Comments\": \"string\",\n" +
+                            "  \"InvoiceType\": \"string\",\n" +
+                            "  \"PointOfSale\": \"string\",\n" +
+                            "  \"InvoiceNumber\": \"string\",\n" +
+                            "  \"IssueDate\": \"YYYY-MM-DD\",\n" +
+                            "  \"ClientCuit\": \"string\",\n" +
+                            "  \"ClientVatType\": \"string\",\n" +
+                            "  \"Items\": [\n" +
+                            "    {\n" +
+                            "      \"Description\": \"string\",\n" +
+                            "      \"Quantity\": 1.0,\n" +
+                            "      \"UnitPrice\": 100.0,\n" +
+                            "      \"Subtotal\": 100.0,\n" +
+                            "      \"VatRate\": 21.0\n" +
+                            "    }\n" +
+                            "  ]\n" +
+                            "}\n" +
+                            "No formatees con markdown (no uses ```json), retorna solo el JSON puro.";
+
             try
             {
                 object requestPayload;
@@ -73,7 +113,7 @@ namespace RikiLoquitoContador.Core.Services
                                 new
                                 {
                                     role = "user",
-                                    content = "Analiza esta imagen de factura e identifica: 1. El nombre del cliente o emisor/proveedor (ClientName), 2. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal, 3. Un resumen muy breve de los conceptos, número de factura o fecha si están visibles (Comments). DEBES retornar ÚNICAMENTE un objeto JSON válido con el esquema: {\"ClientName\": \"string\", \"TotalAmount\": 123.45, \"Comments\": \"string\"}. No formatees con markdown (no uses ```json), retorna solo el JSON puro.",
+                                    content = prompt,
                                     images = new[] { base64String }
                                 }
                             },
@@ -96,7 +136,7 @@ namespace RikiLoquitoContador.Core.Services
                                         new
                                         {
                                             type = "text",
-                                            text = "Analiza esta imagen de factura e identifica: 1. El nombre del cliente o emisor/proveedor (ClientName), 2. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal, 3. Un resumen muy breve de los conceptos, número de factura o fecha si están visibles (Comments). DEBES retornar ÚNICAMENTE un objeto JSON válido con el esquema: {\"ClientName\": \"string\", \"TotalAmount\": 123.45, \"Comments\": \"string\"}. No formatees con markdown (no uses ```json), retorna solo el JSON puro."
+                                            text = prompt
                                         },
                                         new
                                         {
@@ -133,7 +173,7 @@ namespace RikiLoquitoContador.Core.Services
                     if (string.IsNullOrWhiteSpace(extractedText))
                     {
                         _logger.LogWarning("No text could be extracted from document: {FilePath}", filePath);
-                        return (null, null, "No se pudo extraer texto del documento.");
+                        return new AiExtractionResult { Comments = "No se pudo extraer texto del documento." };
                     }
 
                     if (isOllamaNative)
@@ -146,7 +186,7 @@ namespace RikiLoquitoContador.Core.Services
                                 new
                                 {
                                     role = "user",
-                                    content = "Analiza el siguiente texto extraído de una factura e identifica: 1. El nombre del cliente o emisor/proveedor (ClientName), 2. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal, 3. Un resumen muy breve de los conceptos, número de factura o fecha si están visibles (Comments). DEBES retornar ÚNICAMENTE un objeto JSON válido con el esquema: {\"ClientName\": \"string\", \"TotalAmount\": 123.45, \"Comments\": \"string\"}. No formatees con markdown (no uses ```json), retorna solo el JSON puro.\n\n[TEXTO DE LA FACTURA]:\n" + extractedText
+                                    content = prompt + "\n\n[TEXTO DE LA FACTURA]:\n" + extractedText
                                 }
                             },
                             stream = false,
@@ -168,7 +208,7 @@ namespace RikiLoquitoContador.Core.Services
                                         new
                                         {
                                             type = "text",
-                                            text = "Analiza el siguiente texto extraído de una factura e identifica: 1. El nombre del cliente o emisor/proveedor (ClientName), 2. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal, 3. Un resumen muy breve de los conceptos, número de factura o fecha si están visibles (Comments). DEBES retornar ÚNICAMENTE un objeto JSON válido con el esquema: {\"ClientName\": \"string\", \"TotalAmount\": 123.45, \"Comments\": \"string\"}. No formatees con markdown (no uses ```json), retorna solo el JSON puro.\n\n[TEXTO DE LA FACTURA]:\n" + extractedText
+                                            text = prompt + "\n\n[TEXTO DE LA FACTURA]:\n" + extractedText
                                         }
                                     }
                                 }
@@ -209,7 +249,7 @@ namespace RikiLoquitoContador.Core.Services
                 {
                     string errorContent = await response.Content.ReadAsStringAsync();
                     _logger.LogError("AI API returned error status {StatusCode}: {ErrorContent}", response.StatusCode, errorContent);
-                    return (null, null, $"Error de API ({response.StatusCode}): {errorContent}");
+                    return new AiExtractionResult { Comments = $"Error de API ({response.StatusCode}): {errorContent}" };
                 }
 
                 string responseString = await response.Content.ReadAsStringAsync();
@@ -233,7 +273,7 @@ namespace RikiLoquitoContador.Core.Services
 
                 if (string.IsNullOrWhiteSpace(rawContent))
                 {
-                    return (null, null, "Respuesta vacía o formato desconocido recibida de la IA.");
+                    return new AiExtractionResult { Comments = "Respuesta vacía o formato desconocido recibida de la IA." };
                 }
 
                 return ParseResponse(rawContent);
@@ -241,11 +281,11 @@ namespace RikiLoquitoContador.Core.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Exception during AI invoice analysis for {FilePath}", filePath);
-                return (null, null, $"Fallo de conexión o análisis de la IA: {ex.Message}");
+                return new AiExtractionResult { Comments = $"Fallo de conexión o análisis de la IA: {ex.Message}" };
             }
         }
 
-        private (string? ClientName, decimal? TotalAmount, string? Comments) ParseResponse(string rawResponse)
+        private AiExtractionResult ParseResponse(string rawResponse)
         {
             int start = rawResponse.IndexOf('{');
             int end = rawResponse.LastIndexOf('}');
@@ -254,22 +294,23 @@ namespace RikiLoquitoContador.Core.Services
                 string json = rawResponse.Substring(start, end - start + 1);
                 try
                 {
-                    var result = JsonSerializer.Deserialize<AiInvoiceResult>(json, new JsonSerializerOptions
+                    var result = JsonSerializer.Deserialize<AiExtractionResult>(json, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
                     });
                     if (result != null)
                     {
-                        return (result.ClientName, result.TotalAmount, result.Comments);
+                        return result;
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to parse JSON extracted from AI response. JSON string: {Json}", json);
+                    return new AiExtractionResult { Comments = "Error al parsear el JSON de la IA. Detalle: " + ex.Message };
                 }
             }
             
-            return (null, null, "Error al decodificar la respuesta JSON estructurada de la IA. Respuesta cruda: " + rawResponse);
+            return new AiExtractionResult { Comments = "Error al decodificar la respuesta JSON estructurada de la IA. Respuesta cruda: " + rawResponse };
         }
 
         private string ExtractTextFromPdf(string filePath)

@@ -207,58 +207,192 @@ namespace RikiLoquitoContador.Core.Services
             });
         }
 
-        private async Task<Factura?> ProcessAndIndexFileAsync(AppDbContext context, string filePath)
+        private string ComputeSha256(string filePath)
+        {
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            using var stream = File.OpenRead(filePath);
+            var hashBytes = sha256.ComputeHash(stream);
+            return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+        }
+
+        private string GetLogicalName(AiExtractionResult res, string originalName, string extension)
         {
             try
             {
+                string dateStr = res.IssueDate?.ToString("yyyyMMdd") ?? DateTime.Now.ToString("yyyyMMdd");
+                string type = CleanStringForFileName(res.InvoiceType ?? "Factura");
+                string pos = CleanStringForFileName(res.PointOfSale ?? "0000");
+                string number = CleanStringForFileName(res.InvoiceNumber ?? "00000000");
+                string client = CleanStringForFileName(res.ClientName ?? "SinCliente");
+                string cuit = CleanStringForFileName(res.ClientCuit ?? "SinCUIT");
+                
+                return $"{dateStr}_{type}_{pos}-{number}_{client}_{cuit}{extension}";
+            }
+            catch
+            {
+                return $"{Path.GetFileNameWithoutExtension(originalName)}_{DateTime.Now:yyyyMMddHHmmss}{extension}";
+            }
+        }
+
+        private string CleanStringForFileName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "";
+            var invalid = Path.GetInvalidFileNameChars();
+            var clean = new string(name.Where(c => !invalid.Contains(c) && c != ' ' && c != '_').ToArray());
+            return clean;
+        }
+
+        private void MoveFileToFolder(string sourcePath, string destFolder)
+        {
+            try
+            {
+                if (!Directory.Exists(destFolder))
+                {
+                    Directory.CreateDirectory(destFolder);
+                }
+                string fileName = Path.GetFileName(sourcePath);
+                string destPath = Path.Combine(destFolder, fileName);
+                if (File.Exists(destPath))
+                {
+                    destPath = Path.Combine(destFolder, $"{Path.GetFileNameWithoutExtension(fileName)}_{DateTime.Now:yyyyMMddHHmmss}{Path.GetExtension(fileName)}");
+                }
+                File.Move(sourcePath, destPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error moving file from {Source} to folder {Dest}", sourcePath, destFolder);
+            }
+        }
+
+        private async Task<Factura?> ProcessAndIndexFileAsync(AppDbContext context, string filePath)
+        {
+            string hash = "";
+            FileInfo? fileInfo = null;
+            var settings = _configService.GetSettings();
+            var processedFolder = settings.ScanningSettings.ProcessedFolderPath;
+            var conflictsFolder = settings.ScanningSettings.ConflictsFolderPath;
+
+            try
+            {
                 if (!File.Exists(filePath)) return null;
+                fileInfo = new FileInfo(filePath);
+                
+                // Compute SHA256 hash
+                try
+                {
+                    hash = ComputeSha256(filePath);
+                }
+                catch (Exception hashEx)
+                {
+                    _logger.LogError(hashEx, "Failed to compute hash for file {FilePath}", filePath);
+                    MoveFileToFolder(filePath, conflictsFolder);
+                    return null;
+                }
 
-                // Check if already indexed by path
-                var existing = await context.Facturas.FirstOrDefaultAsync(f => f.FilePath == filePath);
-                if (existing != null) return null;
+                // Check if already exists in DB
+                var existing = await context.Facturas.FirstOrDefaultAsync(f => f.FileHash == hash);
+                if (existing != null)
+                {
+                    if (existing.Status == "Success")
+                    {
+                        _logger.LogWarning("Duplicate file detected by hash. Ignoring index: {FileName}", fileInfo.Name);
+                        MoveFileToFolder(filePath, conflictsFolder);
+                        return null;
+                    }
+                    else
+                    {
+                        // Delete old conflict record to reprocess
+                        context.Facturas.Remove(existing);
+                        await context.SaveChangesAsync();
+                    }
+                }
 
-                var fileInfo = new FileInfo(filePath);
                 _logger.LogInformation("Analyzing file with AI before indexing: {FileName}", fileInfo.Name);
 
-                var (clientName, totalAmount, comments) = await _aiService.AnalyzeInvoiceAsync(fileInfo.FullName);
+                var aiResult = await _aiService.AnalyzeInvoiceAsync(fileInfo.FullName);
                 
-                // Re-verify file existence after the long-running AI request to prevent FileNotFoundException
+                // Re-verify file existence
                 if (!File.Exists(filePath))
                 {
                     _logger.LogWarning("File was deleted or moved during AI analysis: {FilePath}", filePath);
                     return null;
                 }
-                
+
+                bool hasAiError = aiResult.Comments != null && 
+                                 (aiResult.Comments.StartsWith("Error de API") || 
+                                  aiResult.Comments.StartsWith("Fallo de conexión") ||
+                                  aiResult.Comments.Contains("Error de conexión"));
+
+                if (hasAiError || string.IsNullOrEmpty(aiResult.ClientName))
+                {
+                    throw new InvalidOperationException(aiResult.Comments ?? "La IA no pudo extraer el nombre del cliente.");
+                }
+
+                // Move file to client folder under processed
+                string clientFolder = Path.Combine(processedFolder, CleanStringForFileName(aiResult.ClientName ?? "SinCliente"));
+                if (!Directory.Exists(clientFolder))
+                {
+                    Directory.CreateDirectory(clientFolder);
+                }
+
+                string logicalName = GetLogicalName(aiResult, fileInfo.Name, fileInfo.Extension);
+                string destinationPath = Path.Combine(clientFolder, logicalName);
+
+                if (File.Exists(destinationPath))
+                {
+                    string nameWithoutExt = Path.GetFileNameWithoutExtension(logicalName);
+                    destinationPath = Path.Combine(clientFolder, $"{nameWithoutExt}_{DateTime.Now:yyyyMMddHHmmss}{fileInfo.Extension}");
+                }
+
+                File.Move(filePath, destinationPath);
+
                 var factura = new Factura
                 {
-                    FileName = fileInfo.Name,
-                    FilePath = fileInfo.FullName,
+                    FileName = Path.GetFileName(destinationPath),
+                    FilePath = destinationPath,
                     FileExtension = fileInfo.Extension.ToLowerInvariant(),
-                    FileSizeBytes = fileInfo.Length,
+                    FileSizeBytes = new FileInfo(destinationPath).Length,
                     FileCreatedAt = fileInfo.CreationTime,
                     IndexedAt = DateTime.UtcNow,
-                    ClientName = clientName ?? "Fallo IA",
-                    TotalAmount = totalAmount,
-                    Comments = comments ?? string.Empty
+                    ClientName = aiResult.ClientName,
+                    TotalAmount = aiResult.TotalAmount,
+                    Comments = aiResult.Comments ?? string.Empty,
+                    
+                    FileHash = hash,
+                    InvoiceType = aiResult.InvoiceType,
+                    PointOfSale = aiResult.PointOfSale,
+                    InvoiceNumber = aiResult.InvoiceNumber,
+                    IssueDate = aiResult.IssueDate,
+                    ClientCuit = aiResult.ClientCuit,
+                    ClientVatType = aiResult.ClientVatType,
+                    ProcessedPath = destinationPath,
+                    Status = "Success",
+                    ErrorMessage = null
                 };
+
+                // Add details
+                if (aiResult.Items != null)
+                {
+                    foreach (var item in aiResult.Items)
+                    {
+                        factura.Detalles.Add(new FacturaDetalle
+                        {
+                            Description = item.Description,
+                            Quantity = item.Quantity,
+                            UnitPrice = item.UnitPrice,
+                            Subtotal = item.Subtotal,
+                            VatRate = item.VatRate
+                        });
+                    }
+                }
 
                 context.Facturas.Add(factura);
                 await context.SaveChangesAsync();
                 _logger.LogInformation("Indexed new invoice: {FileName} with client {ClientName} and total {TotalAmount}", 
                     factura.FileName, factura.ClientName, factura.TotalAmount);
 
-                // Auto-sync to Excel immediately if configured
-                var settings = _configService.GetSettings();
+                // Auto-sync to Excel
                 var excelPath = settings.ScanningSettings.ExcelFilePath;
-                if (string.IsNullOrWhiteSpace(excelPath))
-                {
-                    var folder = settings.ScanningSettings.WatchFolderPath;
-                    if (!string.IsNullOrWhiteSpace(folder))
-                    {
-                        excelPath = Path.Combine(folder, "FacturasSincronizadas.xlsx");
-                    }
-                }
-
                 if (!string.IsNullOrWhiteSpace(excelPath))
                 {
                     try
@@ -277,6 +411,47 @@ namespace RikiLoquitoContador.Core.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to index file {FilePath}", filePath);
+
+                try
+                {
+                    if (File.Exists(filePath) && fileInfo != null)
+                    {
+                        string conflictPath = Path.Combine(conflictsFolder, fileInfo.Name);
+                        if (File.Exists(conflictPath))
+                        {
+                            conflictPath = Path.Combine(conflictsFolder, $"{Path.GetFileNameWithoutExtension(fileInfo.Name)}_{DateTime.Now:yyyyMMddHHmmss}{fileInfo.Extension}");
+                        }
+                        File.Move(filePath, conflictPath);
+
+                        var factura = new Factura
+                        {
+                            FileName = Path.GetFileName(conflictPath),
+                            FilePath = conflictPath,
+                            FileExtension = fileInfo.Extension.ToLowerInvariant(),
+                            FileSizeBytes = new FileInfo(conflictPath).Length,
+                            FileCreatedAt = fileInfo.CreationTime,
+                            IndexedAt = DateTime.UtcNow,
+                            ClientName = "Fallo IA",
+                            TotalAmount = null,
+                            Comments = ex.Message,
+                            
+                            FileHash = string.IsNullOrEmpty(hash) ? Guid.NewGuid().ToString() : hash,
+                            ProcessedPath = null,
+                            Status = "Conflict",
+                            ErrorMessage = ex.Message
+                        };
+
+                        context.Facturas.Add(factura);
+                        await context.SaveChangesAsync();
+
+                        return factura;
+                    }
+                }
+                catch (Exception moveEx)
+                {
+                    _logger.LogError(moveEx, "Failed to move file to conflicts folder: {FilePath}", filePath);
+                }
+
                 return null;
             }
         }

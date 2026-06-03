@@ -21,6 +21,9 @@
     "ExportExcel": "Sincronizar Excel",
     "SearchPlaceholder": "Buscar por nombre de archivo o cliente...",
     "FilterClient": "Filtrar por Cliente",
+    "ConflictBanner": {
+      "Title": "Atención: Hay facturas con conflictos de indexación o errores. Por favor revísalas en la lista."
+    },
     "Table": {
       "FileName": "Archivo",
       "Client": "Cliente",
@@ -29,7 +32,14 @@
       "Indexed": "Indexado",
       "Actions": "Acciones",
       "NoRecords": "No se encontraron facturas indexadas.",
-      "Size": "Tamaño"
+      "Size": "Tamaño",
+      "Cuit": "CUIT",
+      "VatType": "Condición IVA",
+      "InvoiceType": "Tipo",
+      "PointOfSale": "Punto Venta",
+      "InvoiceNumber": "Nro Comprobante",
+      "IssueDate": "Emisión",
+      "Status": "Estado"
     },
     "EditDialog": {
       "Title": "Editar Factura",
@@ -40,6 +50,23 @@
       "Cancel": "Cancelar",
       "Success": "Factura actualizada correctamente."
     },
+    "DeleteDialog": {
+      "Title": "Confirmar Eliminación",
+      "Message": "Para confirmar la eliminación definitiva de la factura \"{0}\", por favor ingrese su número de comprobante ({1}):",
+      "MessageFallback": "Para confirmar la eliminación definitiva de la factura \"{0}\", por favor escriba la palabra \"{1}\":",
+      "Placeholder": "Ingrese confirmación...",
+      "Confirm": "Eliminar permanentemente",
+      "Cancel": "Cancelar",
+      "Success": "Factura eliminada del sistema."
+    },
+    "Detail": {
+      "ItemsTitle": "Detalle de Ítems de la Factura",
+      "Description": "Descripción",
+      "Quantity": "Cant.",
+      "UnitPrice": "P. Unitario",
+      "Subtotal": "Subtotal",
+      "VatRate": "Tasa IVA"
+    },
     "ScannerStatus": {
       "Monitoring": "Monitoreando en tiempo real",
       "NotMonitoring": "Monitoreo detenido"
@@ -47,7 +74,9 @@
   },
   "Settings": {
     "Title": "Configuración General",
-    "FolderPath": "Ruta de la Carpeta a Escanear",
+    "FolderPath": "Ruta de la Carpeta de Entrada",
+    "ProcessedFolderPath": "Ruta de la Carpeta de Procesadas",
+    "ConflictsFolderPath": "Ruta de la Carpeta de Conflictos",
     "SelectFolder": "Seleccionar Carpeta",
     "Save": "Guardar Cambios",
     "Success": "Configuración guardada exitosamente.",
@@ -62,6 +91,19 @@
     "AiEndpoint": "Endpoint / Base URL de la API",
     "AiModel": "Nombre del Modelo",
     "AiApiKey": "Clave API (API Key)",
-    "AiHelp": "Seleccione un proveedor para pre-cargar la configuración recomendada de la API."
+    "AiHelp": "Seleccione un proveedor para pre-cargar la configuración recomendada de la API.",
+    "AfipSection": {
+      "Title": "Tablas Impositivas",
+      "InvoiceTypesTab": "Tipos de Comprobantes",
+      "VatTypesTab": "Categorías de IVA",
+      "Code": "Código",
+      "Description": "Descripción",
+      "Actions": "Acciones",
+      "AddInvoiceType": "Agregar Comprobante",
+      "AddVatType": "Agregar Categoría IVA",
+      "Save": "Agregar",
+      "Required": "Este campo es obligatorio.",
+      "VatDescription": "Condición frente al IVA"
+    }
   }
 }

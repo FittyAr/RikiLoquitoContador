@@ -36,6 +36,7 @@ using (var scope = app.Services.CreateScope())
     var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
     using var db = dbContextFactory.CreateDbContext();
     db.Database.EnsureCreated();
+    RikiLoquitoContador.Core.Data.DbInitializer.Seed(db);
 }
 
 // Configure the HTTP request pipeline.

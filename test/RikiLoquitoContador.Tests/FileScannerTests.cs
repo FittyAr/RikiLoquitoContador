@@ -77,7 +77,7 @@ namespace RikiLoquitoContador.Tests
 
             Assert.Equal(2, facturas.Count);
             
-            var pdfFactura = facturas.FirstOrDefault(f => f.FileName == "factura_cliente_a.pdf");
+            var pdfFactura = facturas.FirstOrDefault(f => f.FileExtension == ".pdf");
             Assert.NotNull(pdfFactura);
             Assert.Equal(".pdf", pdfFactura.FileExtension);
             Assert.Equal("Factura", pdfFactura.ClientName); // By client name extraction heuristic "factura"
@@ -115,7 +115,7 @@ namespace RikiLoquitoContador.Tests
 
     public class FakeAiService : IAiService
     {
-        public Task<(string? ClientName, decimal? TotalAmount, string? Comments)> AnalyzeInvoiceAsync(string filePath)
+        public Task<AiExtractionResult> AnalyzeInvoiceAsync(string filePath)
         {
             var name = Path.GetFileNameWithoutExtension(filePath);
             var parts = name.Split('_');
@@ -124,7 +124,22 @@ namespace RikiLoquitoContador.Tests
             {
                 client = char.ToUpper(client[0]) + client.Substring(1).ToLower();
             }
-            return Task.FromResult<(string?, decimal?, string?)>((client, 100.00m, "Comentario de prueba"));
+            return Task.FromResult(new AiExtractionResult
+            {
+                ClientName = client,
+                TotalAmount = 100.00m,
+                Comments = "Comentario de prueba",
+                InvoiceType = "Factura C",
+                PointOfSale = "0001",
+                InvoiceNumber = "00000001",
+                IssueDate = DateTime.Today,
+                ClientCuit = "20301018135",
+                ClientVatType = "Monotributista",
+                Items = new List<FacturaDetalleDto>
+                {
+                    new FacturaDetalleDto { Description = "Item 1", Quantity = 1.0m, UnitPrice = 100.00m, Subtotal = 100.00m, VatRate = 0.0m }
+                }
+            });
         }
 
         public Task<List<string>> GetAvailableModelsAsync(string provider, string endpoint)

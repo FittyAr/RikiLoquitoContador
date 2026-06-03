@@ -114,7 +114,8 @@ namespace RikiLoquitoContador.Core.Services
                             string[] headers = {
                                 "ID", "Nombre de Archivo", "Ruta de Archivo", "Extension", 
                                 "Tamano (KB)", "Fecha Creacion", "Fecha Indexado", 
-                                "Cliente", "Monto Total", "Comentarios"
+                                "Cliente", "CUIT Cliente", "Condicion IVA", "Tipo Factura", 
+                                "Punto Venta", "Nro Comprobante", "Fecha Emision", "Monto Total", "Comentarios"
                             };
 
                             for (int i = 0; i < headers.Length; i++)
@@ -157,18 +158,31 @@ namespace RikiLoquitoContador.Core.Services
                             worksheet.Cell(writeRow, 6).Value = f.FileCreatedAt;
                             worksheet.Cell(writeRow, 7).Value = f.IndexedAt;
                             worksheet.Cell(writeRow, 8).Value = f.ClientName ?? "General";
-                            
-                            if (f.TotalAmount.HasValue)
+                            worksheet.Cell(writeRow, 9).Value = f.ClientCuit ?? "";
+                            worksheet.Cell(writeRow, 10).Value = f.ClientVatType ?? "";
+                            worksheet.Cell(writeRow, 11).Value = f.InvoiceType ?? "";
+                            worksheet.Cell(writeRow, 12).Value = f.PointOfSale ?? "";
+                            worksheet.Cell(writeRow, 13).Value = f.InvoiceNumber ?? "";
+                            if (f.IssueDate.HasValue)
                             {
-                                worksheet.Cell(writeRow, 9).Value = (double)f.TotalAmount.Value;
-                                worksheet.Cell(writeRow, 9).Style.NumberFormat.Format = "$#,##0.00";
+                                worksheet.Cell(writeRow, 14).Value = f.IssueDate.Value;
                             }
                             else
                             {
-                                worksheet.Cell(writeRow, 9).Value = "";
+                                worksheet.Cell(writeRow, 14).Value = "";
                             }
                             
-                            worksheet.Cell(writeRow, 10).Value = f.Comments ?? "";
+                            if (f.TotalAmount.HasValue)
+                            {
+                                worksheet.Cell(writeRow, 15).Value = (double)f.TotalAmount.Value;
+                                worksheet.Cell(writeRow, 15).Style.NumberFormat.Format = "$#,##0.00";
+                            }
+                            else
+                            {
+                                worksheet.Cell(writeRow, 15).Value = "";
+                            }
+                            
+                            worksheet.Cell(writeRow, 16).Value = f.Comments ?? "";
 
                             writeRow++;
                             addedAny = true;

@@ -10,6 +10,33 @@
 @implements IDisposable
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+    <!-- Conflict Alerts Banner -->
+    @if (_facturas.Any(f => f.Status == "Conflict"))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-6 rounded-lg" Style="background: linear-gradient(135deg, #b71c1c 0%, #d32f2f 100%); border: 1px solid rgba(255, 255, 255, 0.1); color: white;">
+            <div class="d-flex flex-column gap-2">
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Warning" Class="mr-2" />
+                    <span style="font-weight: 700;">@Localizer.T("Dashboard.ConflictBanner.Title")</span>
+                </div>
+                <div class="mt-2" style="max-height: 150px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); padding: 8px; border-radius: 4px; font-size: 0.85rem;">
+                    @foreach (var conflict in _facturas.Where(f => f.Status == "Conflict"))
+                    {
+                        <div class="py-1 d-flex justify-space-between align-center border-bottom border-secondary">
+                            <div>
+                                <strong style="color: #FFCDD2;">@conflict.FileName</strong>: 
+                                <span style="font-style: italic;">@conflict.ErrorMessage</span>
+                            </div>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Inherit" OnClick="@(() => ProcessInvoiceWithAiAsync(conflict))" Style="text-transform: none; text-decoration: underline;">
+                                Reintentar
+                            </MudButton>
+                        </div>
+                    }
+                </div>
+            </div>
+        </MudAlert>
+    }
+
     <!-- Header Summary Cards -->
     <MudGrid Class="mb-6">
         <MudItem xs="12" sm="6" md="3">
@@ -144,6 +171,11 @@
             <RowTemplate>
                 <MudTd DataLabel="Archivo" Style="font-weight: 500;">
                     <div class="d-flex align-center">
+                        <MudIconButton Icon="@(_expandedInvoiceIds.Contains(context.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" 
+                                       Color="Color.Default" 
+                                       Size="Size.Small" 
+                                       OnClick="@(() => ToggleExpand(context.Id))" 
+                                       Class="mr-1" />
                         <MudIcon Icon="@GetFileIcon(context.FileExtension)" Class="mr-2" Color="@GetFileIconColor(context.FileExtension)" />
                         <span title="@context.FilePath">@context.FileName</span>
                     </div>
@@ -196,11 +228,125 @@
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" 
                                            Color="Color.Error" 
                                            Size="Size.Small" 
-                                           OnClick="@(() => DeleteInvoiceAsync(context))" />
+                                           OnClick="@(() => OpenDeleteDialog(context))" />
                         </MudTooltip>
                     </div>
                 </MudTd>
             </RowTemplate>
+            <ChildRowContent>
+                @if (_expandedInvoiceIds.Contains(context.Id))
+                {
+                    <MudTr>
+                        <td colspan="7" style="padding: 16px; background: rgba(30, 30, 30, 0.4);">
+                            <div class="pa-4 rounded-lg" style="background: rgba(40, 40, 40, 0.7); border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); backdrop-filter: blur(5px);">
+                                <MudGrid Class="mb-4">
+                                    <MudItem xs="12" md="6">
+                                        <MudText Typo="Typo.subtitle1" Style="color: #C2FE71; font-weight: 700;" Class="mb-3">
+                                            Datos del Comprobante (Receptor)
+                                        </MudText>
+                                        <div class="d-flex flex-column gap-2">
+                                            <div>
+                                                <span class="mud-text-secondary">CUIT: </span>
+                                                <span style="font-weight: 600;">@(context.ClientCuit ?? "-")</span>
+                                            </div>
+                                            <div>
+                                                <span class="mud-text-secondary">Condición IVA: </span>
+                                                <span style="font-weight: 600;">@(context.ClientVatType ?? "-")</span>
+                                            </div>
+                                            <div>
+                                                <span class="mud-text-secondary">Tipo Factura: </span>
+                                                <span style="font-weight: 600;">@(context.InvoiceType ?? "-")</span>
+                                            </div>
+                                            <div>
+                                                <span class="mud-text-secondary">Punto de Venta / Nro: </span>
+                                                <span style="font-weight: 600;">
+                                                    @(!string.IsNullOrEmpty(context.PointOfSale) || !string.IsNullOrEmpty(context.InvoiceNumber) 
+                                                        ? $"{context.PointOfSale}-{context.InvoiceNumber}" 
+                                                        : "-")
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span class="mud-text-secondary">Fecha Emisión: </span>
+                                                <span style="font-weight: 600;">@(context.IssueDate?.ToString("dd/MM/yyyy") ?? "-")</span>
+                                            </div>
+                                        </div>
+                                    </MudItem>
+                                    <MudItem xs="12" md="6">
+                                        <MudText Typo="Typo.subtitle1" Style="color: #C2FE71; font-weight: 700;" Class="mb-3">
+                                            Estado del Proceso
+                                        </MudText>
+                                        <div class="d-flex flex-column gap-2">
+                                            <div>
+                                                <span class="mud-text-secondary">Estado: </span>
+                                                <MudChip T="string" 
+                                                         Color="@(context.Status == "Success" ? Color.Success : Color.Error)" 
+                                                         Size="Size.Small" 
+                                                         Variant="Variant.Filled">
+                                                    @(context.Status)
+                                                </MudChip>
+                                            </div>
+                                            @if (!string.IsNullOrEmpty(context.ErrorMessage))
+                                            {
+                                                <div class="mt-2 pa-3 rounded" style="background: rgba(244, 67, 54, 0.1); border: 1px solid rgba(244, 67, 54, 0.3); color: #FF8A80;">
+                                                    <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Small" Class="mr-2" />
+                                                    <strong>Error:</strong> @context.ErrorMessage
+                                                </div>
+                                            }
+                                            @if (!string.IsNullOrEmpty(context.ProcessedPath))
+                                            {
+                                                <div class="mt-1">
+                                                    <span class="mud-text-secondary">Ruta Procesada: </span>
+                                                    <span style="font-size: 0.85rem; font-family: monospace; word-break: break-all;">@context.ProcessedPath</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    </MudItem>
+                                </MudGrid>
+
+                                <MudText Typo="Typo.subtitle1" Style="color: #C2FE71; font-weight: 700;" Class="mb-2">
+                                    @Localizer.T("Dashboard.Detail.ItemsTitle")
+                                </MudText>
+                                
+                                @if (context.Detalles != null && context.Detalles.Any())
+                                {
+                                    <MudTable Items="context.Detalles" 
+                                              Dense="true" 
+                                              Hover="true" 
+                                              Style="background: rgba(20, 20, 20, 0.5); color: white;"
+                                              Elevation="0">
+                                        <HeaderContent>
+                                            <MudTh Style="color: #81C784; font-weight: 600;">@Localizer.T("Dashboard.Detail.Description")</MudTh>
+                                            <MudTh Style="color: #81C784; font-weight: 600; text-align: right;">@Localizer.T("Dashboard.Detail.Quantity")</MudTh>
+                                            <MudTh Style="color: #81C784; font-weight: 600; text-align: right;">@Localizer.T("Dashboard.Detail.UnitPrice")</MudTh>
+                                            <MudTh Style="color: #81C784; font-weight: 600; text-align: right;">@Localizer.T("Dashboard.Detail.VatRate")</MudTh>
+                                            <MudTh Style="color: #81C784; font-weight: 600; text-align: right;">@Localizer.T("Dashboard.Detail.Subtotal")</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate Context="detail">
+                                            <MudTd DataLabel="Descripción">@detail.Description</MudTd>
+                                            <MudTd DataLabel="Cantidad" Style="text-align: right;">@detail.Quantity.ToString("N2")</MudTd>
+                                            <MudTd DataLabel="Precio Unitario" Style="text-align: right;">$ @detail.UnitPrice.ToString("N2")</MudTd>
+                                            <MudTd DataLabel="Tasa IVA" Style="text-align: right;">@(detail.VatRate.HasValue ? $"{detail.VatRate.Value}%" : "-")</MudTd>
+                                            <MudTd DataLabel="Subtotal" Style="text-align: right; font-weight: 600;">$ @detail.Subtotal.ToString("N2")</MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                    
+                                    <div class="d-flex justify-end mt-3 pa-2 rounded" style="background: rgba(255, 255, 255, 0.03);">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #81C784;">
+                                            Total: $ @(context.TotalAmount.HasValue ? context.TotalAmount.Value.ToString("N2") : context.Detalles.Sum(d => d.Subtotal).ToString("N2"))
+                                        </MudText>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="pa-3 text-center rounded" style="background: rgba(255, 255, 255, 0.02);">
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary italic">No hay renglones detallados para esta factura.</MudText>
+                                    </div>
+                                }
+                            </div>
+                        </td>
+                    </MudTr>
+                }
+            </ChildRowContent>
             <NoRecordsContent>
                 <div class="pa-4 text-center">
                     <MudText Class="mud-text-secondary">@Localizer.T("Dashboard.Table.NoRecords")</MudText>
@@ -264,6 +410,56 @@
             </div>
         </DialogActions>
     </MudDialog>
+
+    <!-- Delete Confirmation Dialog -->
+    <MudDialog @bind-Visible="_deleteDialogVisible" Options="_dialogOptions">
+        <TitleContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Class="mr-2" />
+                <MudText Typo="Typo.h6" Style="color: white; font-weight: bold;">
+                    @Localizer.T("Dashboard.DeleteDialog.Title")
+                </MudText>
+            </div>
+        </TitleContent>
+        <DialogContent>
+            <div style="background: #212121; color: white;" class="d-flex flex-column gap-4 pa-4 rounded">
+                <MudText Typo="Typo.body1">
+                    @if (!string.IsNullOrWhiteSpace(_deletingFactura?.InvoiceNumber))
+                    {
+                        @string.Format(Localizer.T("Dashboard.DeleteDialog.Message"), _deletingFactura?.FileName, _deletingFactura?.InvoiceNumber)
+                    }
+                    else
+                    {
+                        @string.Format(Localizer.T("Dashboard.DeleteDialog.MessageFallback"), _deletingFactura?.FileName, "ELIMINAR")
+                    }
+                </MudText>
+                
+                <MudTextField T="string"
+                              Label="@Localizer.T("Dashboard.DeleteDialog.Placeholder")"
+                              @bind-Value="_deleteConfirmInput"
+                              Variant="Variant.Outlined"
+                              Style="color: white;"
+                              Immediate="true" />
+            </div>
+        </DialogContent>
+        <DialogActions>
+            <div class="pa-4 d-flex justify-end gap-3" style="background: #212121; width: 100%;">
+                <MudButton Variant="Variant.Text" 
+                           Color="Color.Default" 
+                           OnClick="CloseDeleteDialog">
+                    @Localizer.T("Dashboard.DeleteDialog.Cancel")
+                </MudButton>
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Error" 
+                           OnClick="ConfirmDeleteInvoiceAsync"
+                           Disabled="@(_deleteConfirmInput != _expectedDeleteConfirmValue)"
+                           Style="font-weight: 600;"
+                           Class="px-4 py-2 rounded-pill">
+                    @Localizer.T("Dashboard.DeleteDialog.Confirm")
+                </MudButton>
+            </div>
+        </DialogActions>
+    </MudDialog>
 </MudContainer>
 
 @code {
@@ -273,6 +469,9 @@
     private bool _isScanning = false;
     private readonly HashSet<int> _processingAiIds = new();
     
+    // Expanded row state
+    private readonly HashSet<int> _expandedInvoiceIds = new();
+
     // Filters
     private string _searchQuery = string.Empty;
     private string _selectedClient = string.Empty;
@@ -283,6 +482,12 @@
     private string _editClientName = string.Empty;
     private decimal? _editTotalAmount;
     private string _editComments = string.Empty;
+
+    // Delete Modal State
+    private bool _deleteDialogVisible;
+    private Factura? _deletingFactura;
+    private string _deleteConfirmInput = string.Empty;
+    private string _expectedDeleteConfirmValue = string.Empty;
     
     private readonly DialogOptions _dialogOptions = new() 
     { 
@@ -332,7 +537,7 @@
         try
         {
             using var context = await DbContextFactory.CreateDbContextAsync();
-            _facturas = await context.Facturas.ToListAsync();
+            _facturas = await context.Facturas.Include(f => f.Detalles).ToListAsync();
             
             _clients = _facturas
                 .Select(f => f.ClientName)
@@ -398,15 +603,82 @@
 
             Snackbar.Add($"Analizando '{factura.FileName}' con IA...", Severity.Info);
 
-            var (clientName, totalAmount, comments) = await AiService.AnalyzeInvoiceAsync(factura.FilePath);
+            var aiResult = await AiService.AnalyzeInvoiceAsync(factura.FilePath);
 
             using var context = await DbContextFactory.CreateDbContextAsync();
-            var dbFactura = await context.Facturas.FindAsync(factura.Id);
+            var dbFactura = await context.Facturas.Include(f => f.Detalles).FirstOrDefaultAsync(f => f.Id == factura.Id);
             if (dbFactura != null)
             {
-                dbFactura.ClientName = clientName ?? "Fallo IA";
-                dbFactura.TotalAmount = totalAmount;
-                dbFactura.Comments = comments;
+                bool hasAiError = aiResult.Comments != null && 
+                                 (aiResult.Comments.StartsWith("Error de API") || 
+                                  aiResult.Comments.StartsWith("Fallo de conexión") ||
+                                  aiResult.Comments.Contains("Error de conexión"));
+
+                dbFactura.ClientName = aiResult.ClientName ?? "Fallo IA";
+                dbFactura.TotalAmount = aiResult.TotalAmount;
+                dbFactura.Comments = aiResult.Comments;
+                dbFactura.InvoiceType = aiResult.InvoiceType;
+                dbFactura.PointOfSale = aiResult.PointOfSale;
+                dbFactura.InvoiceNumber = aiResult.InvoiceNumber;
+                dbFactura.IssueDate = aiResult.IssueDate;
+                dbFactura.ClientCuit = aiResult.ClientCuit;
+                dbFactura.ClientVatType = aiResult.ClientVatType;
+                dbFactura.Status = (hasAiError || string.IsNullOrEmpty(aiResult.ClientName)) ? "Conflict" : "Success";
+                dbFactura.ErrorMessage = hasAiError ? aiResult.Comments : null;
+
+                // Remove existing details
+                context.FacturaDetalles.RemoveRange(dbFactura.Detalles);
+                dbFactura.Detalles.Clear();
+
+                // Add new details
+                if (aiResult.Items != null)
+                {
+                    foreach (var item in aiResult.Items)
+                    {
+                        dbFactura.Detalles.Add(new FacturaDetalle
+                        {
+                            Description = item.Description,
+                            Quantity = item.Quantity,
+                            UnitPrice = item.UnitPrice,
+                            Subtotal = item.Subtotal,
+                            VatRate = item.VatRate
+                        });
+                    }
+                }
+
+                // If it is now success, we should move the file to the client's folder
+                if (dbFactura.Status == "Success" && File.Exists(dbFactura.FilePath))
+                {
+                    try
+                    {
+                        var fileInfo = new FileInfo(dbFactura.FilePath);
+                        string clientFolder = Path.Combine(settings.ScanningSettings.ProcessedFolderPath, CleanStringForFileName(aiResult.ClientName ?? "SinCliente"));
+                        if (!Directory.Exists(clientFolder))
+                        {
+                            Directory.CreateDirectory(clientFolder);
+                        }
+
+                        string logicalName = GetLogicalName(aiResult, fileInfo.Name, fileInfo.Extension);
+                        string destinationPath = Path.Combine(clientFolder, logicalName);
+
+                        if (destinationPath != dbFactura.FilePath)
+                        {
+                            if (File.Exists(destinationPath))
+                            {
+                                string nameWithoutExt = Path.GetFileNameWithoutExtension(logicalName);
+                                destinationPath = Path.Combine(clientFolder, $"{nameWithoutExt}_{DateTime.Now:yyyyMMddHHmmss}{fileInfo.Extension}");
+                            }
+                            File.Move(dbFactura.FilePath, destinationPath);
+                            dbFactura.FilePath = destinationPath;
+                            dbFactura.FileName = Path.GetFileName(destinationPath);
+                            dbFactura.ProcessedPath = destinationPath;
+                        }
+                    }
+                    catch (Exception moveEx)
+                    {
+                        Console.WriteLine($"[ProcessWithAi] Failed to move file: {moveEx.Message}");
+                    }
+                }
 
                 await context.SaveChangesAsync();
 
@@ -491,26 +763,67 @@
         }
     }
 
-    private async Task DeleteInvoiceAsync(Factura factura)
+    private void ToggleExpand(int id)
     {
-        if (factura == null) return;
+        if (_expandedInvoiceIds.Contains(id))
+            _expandedInvoiceIds.Remove(id);
+        else
+            _expandedInvoiceIds.Add(id);
+    }
+
+    private void OpenDeleteDialog(Factura factura)
+    {
+        _deletingFactura = factura;
+        _deleteConfirmInput = string.Empty;
+        _expectedDeleteConfirmValue = !string.IsNullOrWhiteSpace(factura.InvoiceNumber) 
+            ? factura.InvoiceNumber 
+            : "ELIMINAR";
+        _deleteDialogVisible = true;
+    }
+
+    private void CloseDeleteDialog()
+    {
+        _deleteDialogVisible = false;
+        _deletingFactura = null;
+        _deleteConfirmInput = string.Empty;
+    }
+
+    private async Task ConfirmDeleteInvoiceAsync()
+    {
+        if (_deletingFactura == null) return;
 
         try
         {
+            if (!string.IsNullOrWhiteSpace(_deletingFactura.FilePath) && File.Exists(_deletingFactura.FilePath))
+            {
+                try
+                {
+                    File.Delete(_deletingFactura.FilePath);
+                }
+                catch (Exception fileEx)
+                {
+                    Console.WriteLine($"[Delete] Could not delete physical file at {_deletingFactura.FilePath}: {fileEx.Message}");
+                }
+            }
+
             using var context = await DbContextFactory.CreateDbContextAsync();
-            var dbFactura = await context.Facturas.FindAsync(factura.Id);
+            var dbFactura = await context.Facturas.FindAsync(_deletingFactura.Id);
             if (dbFactura != null)
             {
                 context.Facturas.Remove(dbFactura);
                 await context.SaveChangesAsync();
                 
-                Snackbar.Add($"Factura '{factura.FileName}' eliminada con éxito.", Severity.Success);
+                Snackbar.Add(Localizer.T("Dashboard.DeleteDialog.Success"), Severity.Success);
                 await LoadDataAsync();
             }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error al eliminar la factura: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            CloseDeleteDialog();
         }
     }
 
@@ -608,6 +921,33 @@
             ".doc" or ".docx" => Color.Primary,
             _ => Color.Default
         };
+    }
+
+    private string CleanStringForFileName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "";
+        var invalid = Path.GetInvalidFileNameChars();
+        var clean = new string(name.Where(c => !invalid.Contains(c) && c != ' ' && c != '_').ToArray());
+        return clean;
+    }
+
+    private string GetLogicalName(AiExtractionResult res, string originalName, string extension)
+    {
+        try
+        {
+            string dateStr = res.IssueDate?.ToString("yyyyMMdd") ?? DateTime.Now.ToString("yyyyMMdd");
+            string type = CleanStringForFileName(res.InvoiceType ?? "Factura");
+            string pos = CleanStringForFileName(res.PointOfSale ?? "0000");
+            string number = CleanStringForFileName(res.InvoiceNumber ?? "00000000");
+            string client = CleanStringForFileName(res.ClientName ?? "SinCliente");
+            string cuit = CleanStringForFileName(res.ClientCuit ?? "SinCUIT");
+            
+            return $"{dateStr}_{type}_{pos}-{number}_{client}_{cuit}{extension}";
+        }
+        catch
+        {
+            return $"{Path.GetFileNameWithoutExtension(originalName)}_{DateTime.Now:yyyyMMddHHmmss}{extension}";
+        }
     }
 
     public void Dispose()
