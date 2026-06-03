@@ -81,7 +81,7 @@ namespace RikiLoquitoContador.Core.Services
                     defaultSettings.ScanningSettings.ConflictsFolderPath = Path.Combine(appDataDir, "Conflictos");
                     defaultSettings.ScanningSettings.ExcelFilePath = Path.Combine(appDataDir, "FacturasSincronizadas.xlsx");
                     defaultSettings.ScanningSettings.ScanIntervalSeconds = 10;
-                    defaultSettings.ScanningSettings.ClientesContadorCuit = string.Empty;
+                    defaultSettings.ScanningSettings.ClientesContador = new();
                     defaultSettings.ConnectionStrings.DefaultConnection = $"Data Source={Path.Combine(appDataDir, "facturas.db")}";
 
                     var json = JsonSerializer.Serialize(defaultSettings, new JsonSerializerOptions { WriteIndented = true });
@@ -184,8 +184,11 @@ namespace RikiLoquitoContador.Core.Services
                 _cachedSettings.ScanningSettings.ScanIntervalSeconds = interval;
             }
 
-            var clientesContadorCuit = _configuration["ScanningSettings:ClientesContadorCuit"];
-            if (clientesContadorCuit != null) _cachedSettings.ScanningSettings.ClientesContadorCuit = clientesContadorCuit;
+            var clientesContadorSection = _configuration.GetSection("ScanningSettings:ClientesContador");
+            if (clientesContadorSection.Exists())
+            {
+                _cachedSettings.ScanningSettings.ClientesContador = clientesContadorSection.Get<System.Collections.Generic.List<ClienteContador>>() ?? new();
+            }
 
             var aiProvider = _configuration["AiSettings:Provider"];
             if (aiProvider != null) _cachedSettings.AiSettings.Provider = aiProvider;
@@ -208,7 +211,7 @@ namespace RikiLoquitoContador.Core.Services
             _cachedSettings.ScanningSettings.ExcelFilePath = _configuration["ScanningSettings:ExcelFilePath"] ?? string.Empty;
             _cachedSettings.ScanningSettings.ProcessedFolderPath = _configuration["ScanningSettings:ProcessedFolderPath"] ?? string.Empty;
             _cachedSettings.ScanningSettings.ConflictsFolderPath = _configuration["ScanningSettings:ConflictsFolderPath"] ?? string.Empty;
-            _cachedSettings.ScanningSettings.ClientesContadorCuit = _configuration["ScanningSettings:ClientesContadorCuit"] ?? string.Empty;
+            _cachedSettings.ScanningSettings.ClientesContador = _configuration.GetSection("ScanningSettings:ClientesContador").Get<System.Collections.Generic.List<ClienteContador>>() ?? new();
             
             if (int.TryParse(_configuration["ScanningSettings:ScanIntervalSeconds"], out int interval))
             {

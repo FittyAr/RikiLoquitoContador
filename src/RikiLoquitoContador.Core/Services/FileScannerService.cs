@@ -246,26 +246,27 @@ namespace RikiLoquitoContador.Core.Services
 
         private string GetClientFolderNameAndSubfolder(AiExtractionResult res, ScanningSettings settings, out string subfolder)
         {
-            var cuits = (settings.ClientesContadorCuit ?? "")
-                .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(c => new string(c.Where(char.IsDigit).ToArray()))
-                .Where(c => !string.IsNullOrEmpty(c))
-                .ToList();
-
             string emisorCuitClean = new string((res.EmisorCuit ?? "").Where(char.IsDigit).ToArray());
             string receptorCuitClean = new string((res.ReceptorCuit ?? "").Where(char.IsDigit).ToArray());
 
-            if (cuits.Count > 0)
+            if (settings.ClientesContador != null && settings.ClientesContador.Count > 0)
             {
-                if (!string.IsNullOrEmpty(emisorCuitClean) && cuits.Contains(emisorCuitClean))
+                var matchingEmisor = settings.ClientesContador.FirstOrDefault(c => 
+                    new string(c.Cuit.Where(char.IsDigit).ToArray()) == emisorCuitClean);
+                
+                if (matchingEmisor != null)
                 {
                     subfolder = "Emitidas";
-                    return CleanStringForFileName(res.EmisorNombre ?? "SinNombre");
+                    return CleanStringForFileName(matchingEmisor.Nombre ?? res.EmisorNombre ?? "SinNombre");
                 }
-                if (!string.IsNullOrEmpty(receptorCuitClean) && cuits.Contains(receptorCuitClean))
+
+                var matchingReceptor = settings.ClientesContador.FirstOrDefault(c => 
+                    new string(c.Cuit.Where(char.IsDigit).ToArray()) == receptorCuitClean);
+
+                if (matchingReceptor != null)
                 {
                     subfolder = "Recibidas";
-                    return CleanStringForFileName(res.ReceptorNombre ?? "SinNombre");
+                    return CleanStringForFileName(matchingReceptor.Nombre ?? res.ReceptorNombre ?? "SinNombre");
                 }
             }
 
@@ -402,7 +403,7 @@ namespace RikiLoquitoContador.Core.Services
                     FilePath = destinationPath,
                     FileExtension = fileInfo.Extension.ToLowerInvariant(),
                     FileSizeBytes = fileLength,
-                    FileCreatedAt = fileCreatedAt,
+                    FileCreatedAt = aiResult.IssueDate ?? fileCreatedAt,
                     IndexedAt = DateTime.UtcNow,
                     EmisorNombre = aiResult.EmisorNombre,
                     EmisorCuit = aiResult.EmisorCuit,

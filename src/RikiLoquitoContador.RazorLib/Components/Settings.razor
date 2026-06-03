@@ -187,21 +187,64 @@
                                         </MudText>
                                     </MudItem>
 
-                                    <!-- Clientes Contador CUIT -->
-                                    <MudItem xs="12">
-                                        <MudTextField @bind-Value="_clientesContadorCuit"
-                                                      Label="CUITs de Clientes del Contador (separados por coma)"
-                                                      Variant="Variant.Outlined"
-                                                      Margin="Margin.Dense"
-                                                      Style="color: white;"
-                                                      Placeholder="20123456789, 30765432109"
-                                                      Adornment="Adornment.Start"
-                                                      AdornmentIcon="@Icons.Material.Filled.People" />
-                                    </MudItem>
-                                    <MudItem xs="12">
-                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                            Ingresa los CUITs de los clientes del contador para clasificar las facturas en carpetas de Compras (Recibidas) o Ventas (Emitidas).
+                                    <!-- Clientes Contador List Editor -->
+                                    <MudItem xs="12" Class="mt-2">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600; color: #C2FE71;" Class="mb-2">
+                                            Clientes del Contador
                                         </MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mb-4">
+                                            Configura los CUITs de los clientes del contador junto con su descripción/nombre. Esto servirá para clasificar automáticamente las facturas procesadas en carpetas de Emitidas (Ventas) o Recibidas (Compras) bajo su respectivo nombre.
+                                        </MudText>
+                                        
+                                        <div class="d-flex gap-3 mb-4 align-center">
+                                            <MudTextField @bind-Value="_newClientCuit" 
+                                                          Label="CUIT del Cliente" 
+                                                          Placeholder="30765432109" 
+                                                          Margin="Margin.Dense" 
+                                                          Variant="Variant.Outlined" 
+                                                          Style="color: white; max-width: 180px;" />
+                                            <MudTextField @bind-Value="_newClientName" 
+                                                          Label="Nombre / Descripción" 
+                                                          Placeholder="Juan Perez SRL" 
+                                                          Margin="Margin.Dense" 
+                                                          Variant="Variant.Outlined" 
+                                                          Style="color: white; flex-grow: 1;" />
+                                            <MudIconButton Icon="@Icons.Material.Filled.Add" 
+                                                           Color="Color.Success" 
+                                                           OnClick="AddContadorClient" 
+                                                           Size="Size.Medium" 
+                                                           Style="margin-top: 4px;" />
+                                        </div>
+
+                                        <MudTable Items="_clientesContador" 
+                                                  Dense="true" 
+                                                  Hover="true" 
+                                                  Height="250px" 
+                                                  FixedHeader="true"
+                                                  Elevation="0"
+                                                  Style="background: rgba(43, 43, 43, 0.4); color: white;"
+                                                  Class="rounded-lg">
+                                            <HeaderContent>
+                                                <MudTh Style="color: #C2FE71; font-weight: 600; width: 180px;">CUIT</MudTh>
+                                                <MudTh Style="color: #C2FE71; font-weight: 600;">Nombre / Descripción</MudTh>
+                                                <MudTh Style="color: #C2FE71; font-weight: 600; text-align: center; width: 80px;">Acciones</MudTh>
+                                            </HeaderContent>
+                                            <RowTemplate Context="clientContext">
+                                                <MudTd>@clientContext.Cuit</MudTd>
+                                                <MudTd>@clientContext.Nombre</MudTd>
+                                                <MudTd Style="text-align: center;">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                                   Color="Color.Error" 
+                                                                   Size="Size.Small" 
+                                                                   OnClick="@(() => DeleteContadorClient(clientContext))" />
+                                                </MudTd>
+                                            </RowTemplate>
+                                            <NoRecordsContent>
+                                                <div class="pa-4 text-center">
+                                                    <MudText Class="mud-text-secondary italic">No se han configurado clientes del contador.</MudText>
+                                                </div>
+                                            </NoRecordsContent>
+                                        </MudTable>
                                     </MudItem>
 
                                     <MudItem xs="12" md="6">
@@ -520,7 +563,9 @@
     private string _processedFolderPath = string.Empty;
     private string _conflictsFolderPath = string.Empty;
     private string _excelFilePath = string.Empty;
-    private string _clientesContadorCuit = string.Empty;
+    private List<ClienteContador> _clientesContador = new();
+    private string _newClientCuit = string.Empty;
+    private string _newClientName = string.Empty;
     private int _scanInterval = 10;
     private bool _directoryExists;
     private bool _processedDirExists;
@@ -580,7 +625,7 @@
         _excelFilePath = settings.ScanningSettings.ExcelFilePath;
         _processedFolderPath = settings.ScanningSettings.ProcessedFolderPath;
         _conflictsFolderPath = settings.ScanningSettings.ConflictsFolderPath;
-        _clientesContadorCuit = settings.ScanningSettings.ClientesContadorCuit ?? "";
+        _clientesContador = settings.ScanningSettings.ClientesContador?.ToList() ?? new List<ClienteContador>();
         _scanInterval = settings.ScanningSettings.ScanIntervalSeconds;
 
         _selectedProvider = settings.AiSettings?.Provider ?? "OpenAI";
@@ -714,7 +759,7 @@
             settings.ScanningSettings.ExcelFilePath = _excelFilePath;
             settings.ScanningSettings.ProcessedFolderPath = _processedFolderPath;
             settings.ScanningSettings.ConflictsFolderPath = _conflictsFolderPath;
-            settings.ScanningSettings.ClientesContadorCuit = _clientesContadorCuit;
+            settings.ScanningSettings.ClientesContador = _clientesContador;
             settings.ScanningSettings.ScanIntervalSeconds = _scanInterval;
 
             // Update password if a new one is typed
@@ -883,5 +928,43 @@
         {
             Snackbar.Add($"Error al eliminar: {ex.Message}", Severity.Error);
         }
+    }
+
+    private void AddContadorClient()
+    {
+        if (string.IsNullOrWhiteSpace(_newClientCuit) || string.IsNullOrWhiteSpace(_newClientName))
+        {
+            Snackbar.Add("Debe ingresar el CUIT y el Nombre/Descripción.", Severity.Warning);
+            return;
+        }
+
+        var cuitClean = new string(_newClientCuit.Where(char.IsDigit).ToArray());
+        if (cuitClean.Length < 10)
+        {
+            Snackbar.Add("CUIT inválido. Debe tener al menos 10 dígitos.", Severity.Warning);
+            return;
+        }
+
+        if (_clientesContador.Any(c => new string(c.Cuit.Where(char.IsDigit).ToArray()) == cuitClean))
+        {
+            Snackbar.Add("Ya existe un cliente con ese CUIT.", Severity.Warning);
+            return;
+        }
+
+        _clientesContador.Add(new ClienteContador
+        {
+            Cuit = cuitClean,
+            Nombre = _newClientName.Trim()
+        });
+
+        _newClientCuit = string.Empty;
+        _newClientName = string.Empty;
+        Snackbar.Add("Cliente agregado temporalmente. Recuerde guardar los cambios.", Severity.Success);
+    }
+
+    private void DeleteContadorClient(ClienteContador client)
+    {
+        _clientesContador.Remove(client);
+        Snackbar.Add("Cliente removido. Recuerde guardar los cambios.", Severity.Success);
     }
 }

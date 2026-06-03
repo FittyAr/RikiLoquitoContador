@@ -224,7 +224,7 @@
                     }
                 </MudTd>
                 <MudTd DataLabel="Tamaño">@GetFormattedSize(context.FileSizeBytes)</MudTd>
-                <MudTd DataLabel="Creación">@context.FileCreatedAt.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                <MudTd DataLabel="Creación">@context.FileCreatedAt.ToString("dd/MM/yyyy")</MudTd>
                 <MudTd DataLabel="Indexado">@context.IndexedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
                 <MudTd DataLabel="Acciones" Style="text-align: center;">
                     <div class="d-flex justify-center gap-1">
@@ -738,6 +738,7 @@
                 dbFactura.PointOfSale = aiResult.PointOfSale;
                 dbFactura.InvoiceNumber = aiResult.InvoiceNumber;
                 dbFactura.IssueDate = aiResult.IssueDate;
+                dbFactura.FileCreatedAt = aiResult.IssueDate ?? dbFactura.FileCreatedAt;
                 dbFactura.Status = (hasAiError || (string.IsNullOrEmpty(aiResult.EmisorNombre) && string.IsNullOrEmpty(aiResult.ReceptorNombre))) ? "Conflict" : "Success";
                 dbFactura.ErrorMessage = hasAiError ? aiResult.Comments : null;
 
@@ -875,6 +876,7 @@
                 dbFactura.PointOfSale = _editPointOfSale;
                 dbFactura.InvoiceNumber = _editInvoiceNumber;
                 dbFactura.IssueDate = _editIssueDate;
+                dbFactura.FileCreatedAt = _editIssueDate ?? dbFactura.FileCreatedAt;
                 dbFactura.TotalAmount = _editTotalAmount;
                 dbFactura.Comments = _editComments;
                 
@@ -1134,26 +1136,27 @@
 
     private string GetClientFolderNameAndSubfolder(AiExtractionResult res, ScanningSettings settings, out string subfolder)
     {
-        var cuits = (settings.ClientesContadorCuit ?? "")
-            .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(c => new string(c.Where(char.IsDigit).ToArray()))
-            .Where(c => !string.IsNullOrEmpty(c))
-            .ToList();
-
         string emisorCuitClean = new string((res.EmisorCuit ?? "").Where(char.IsDigit).ToArray());
         string receptorCuitClean = new string((res.ReceptorCuit ?? "").Where(char.IsDigit).ToArray());
 
-        if (cuits.Count > 0)
+        if (settings.ClientesContador != null && settings.ClientesContador.Count > 0)
         {
-            if (!string.IsNullOrEmpty(emisorCuitClean) && cuits.Contains(emisorCuitClean))
+            var matchingEmisor = settings.ClientesContador.FirstOrDefault(c => 
+                new string(c.Cuit.Where(char.IsDigit).ToArray()) == emisorCuitClean);
+            
+            if (matchingEmisor != null)
             {
                 subfolder = "Emitidas";
-                return CleanStringForFileName(res.EmisorNombre ?? "SinNombre");
+                return CleanStringForFileName(matchingEmisor.Nombre ?? res.EmisorNombre ?? "SinNombre");
             }
-            if (!string.IsNullOrEmpty(receptorCuitClean) && cuits.Contains(receptorCuitClean))
+
+            var matchingReceptor = settings.ClientesContador.FirstOrDefault(c => 
+                new string(c.Cuit.Where(char.IsDigit).ToArray()) == receptorCuitClean);
+
+            if (matchingReceptor != null)
             {
                 subfolder = "Recibidas";
-                return CleanStringForFileName(res.ReceptorNombre ?? "SinNombre");
+                return CleanStringForFileName(matchingReceptor.Nombre ?? res.ReceptorNombre ?? "SinNombre");
             }
         }
 

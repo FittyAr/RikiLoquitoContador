@@ -163,7 +163,9 @@ namespace RikiLoquitoContador.Core.Services
 
                             worksheet.Cell(writeRow, 1).Value = f.FileHash;
                             worksheet.Cell(writeRow, 2).Value = f.FileCreatedAt;
+                            worksheet.Cell(writeRow, 2).Style.NumberFormat.Format = "dd/mm/yyyy";
                             worksheet.Cell(writeRow, 3).Value = f.IndexedAt.ToLocalTime();
+                            worksheet.Cell(writeRow, 3).Style.NumberFormat.Format = "dd/mm/yyyy hh:mm";
                             worksheet.Cell(writeRow, 4).Value = f.EmisorNombre ?? "General";
                             worksheet.Cell(writeRow, 5).Value = f.EmisorCuit ?? "";
                             worksheet.Cell(writeRow, 6).Value = f.ReceptorNombre ?? "";
