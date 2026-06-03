@@ -37,6 +37,20 @@
         </MudAlert>
     }
 
+    <!-- Active Processing Files Banner -->
+    @if (_processingQueue.Any())
+    {
+        <MudPaper Class="d-flex align-center pa-4 mb-6 rounded-lg" Elevation="6" Style="background: rgba(33, 150, 243, 0.15); border: 1px solid rgba(33, 150, 243, 0.3); color: #90CAF9;">
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-3" />
+            <div class="d-flex flex-column">
+                <MudText Typo="Typo.body2" Style="font-weight: 600;">Procesando facturas en segundo plano...</MudText>
+                <MudText Typo="Typo.caption" Style="color: rgba(255, 255, 255, 0.7);">
+                    Archivos en cola: @string.Join(", ", _processingQueue)
+                </MudText>
+            </div>
+        </MudPaper>
+    }
+
     <!-- Header Summary Cards -->
     <MudGrid Class="mb-6">
         <MudItem xs="12" sm="6" md="3">
@@ -359,7 +373,7 @@
     </MudPaper>
 
     <!-- Inline Edit Dialog (using MudDialog inside page state) -->
-    <MudDialog @bind-Visible="_editDialogVisible" Options="_dialogOptions">
+    <MudDialog @bind-Visible="_editDialogVisible" Options="_editDialogOptions">
         <TitleContent>
             <div class="d-flex align-center">
                 <MudIcon Icon="@Icons.Material.Filled.Edit" Color="Color.Success" Class="mr-2" />
@@ -369,28 +383,80 @@
             </div>
         </TitleContent>
         <DialogContent>
-            <div style="background: #212121; color: white;" class="d-flex flex-column gap-4 pa-4 rounded">
+            <div style="background: #212121; color: white; max-height: 70vh; overflow-y: auto;" class="d-flex flex-column gap-3 pa-2 rounded">
                 <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Archivo: @_editingFactura?.FileName</MudText>
                 
-                <MudTextField T="string"
-                              Label="@Localizer.T("Dashboard.EditDialog.ClientLabel")"
-                              @bind-Value="_editClientName"
-                              Variant="Variant.Outlined"
-                              Style="color: white;" />
+                <MudGrid>
+                     <MudItem xs="12" md="6">
+                         <MudTextField T="string"
+                                       Label="@Localizer.T("Dashboard.EditDialog.ClientLabel")"
+                                       @bind-Value="_editClientName"
+                                       Variant="Variant.Outlined"
+                                       Style="color: white;" />
+                     </MudItem>
+                     <MudItem xs="12" md="6">
+                         <MudTextField T="string"
+                                       Label="CUIT Cliente"
+                                       @bind-Value="_editClientCuit"
+                                       Variant="Variant.Outlined"
+                                       Style="color: white;" />
+                     </MudItem>
 
-                <MudNumericField T="decimal?"
-                                 Label="@Localizer.T("Dashboard.EditDialog.AmountLabel")"
-                                 @bind-Value="_editTotalAmount"
-                                 Variant="Variant.Outlined"
-                                 Style="color: white;"
-                                 Min="0" />
+                     <MudItem xs="12" md="6">
+                         <MudTextField T="string"
+                                       Label="Condición IVA Cliente"
+                                       @bind-Value="_editClientVatType"
+                                       Variant="Variant.Outlined"
+                                       Style="color: white;" />
+                     </MudItem>
+                     <MudItem xs="12" md="6">
+                         <MudTextField T="string"
+                                       Label="Tipo Factura"
+                                       @bind-Value="_editInvoiceType"
+                                       Variant="Variant.Outlined"
+                                       Style="color: white;" />
+                     </MudItem>
 
-                <MudTextField T="string"
-                              Label="@Localizer.T("Dashboard.EditDialog.CommentsLabel")"
-                              @bind-Value="_editComments"
-                              Variant="Variant.Outlined"
-                              Style="color: white;"
-                              Lines="3" />
+                     <MudItem xs="12" md="4">
+                         <MudTextField T="string"
+                                       Label="Punto de Venta"
+                                       @bind-Value="_editPointOfSale"
+                                       Variant="Variant.Outlined"
+                                       Style="color: white;" />
+                     </MudItem>
+                     <MudItem xs="12" md="8">
+                         <MudTextField T="string"
+                                       Label="Número de Comprobante"
+                                       @bind-Value="_editInvoiceNumber"
+                                       Variant="Variant.Outlined"
+                                       Style="color: white;" />
+                     </MudItem>
+
+                     <MudItem xs="12" md="6">
+                         <MudDatePicker Label="Fecha de Emisión"
+                                        @bind-Date="_editIssueDate"
+                                        Variant="Variant.Outlined"
+                                        Color="Color.Success"
+                                        Style="color: white;" />
+                     </MudItem>
+                     <MudItem xs="12" md="6">
+                         <MudNumericField T="decimal?"
+                                          Label="@Localizer.T("Dashboard.EditDialog.AmountLabel")"
+                                          @bind-Value="_editTotalAmount"
+                                          Variant="Variant.Outlined"
+                                          Style="color: white;"
+                                          Min="0" />
+                     </MudItem>
+
+                     <MudItem xs="12">
+                         <MudTextField T="string"
+                                       Label="@Localizer.T("Dashboard.EditDialog.CommentsLabel")"
+                                       @bind-Value="_editComments"
+                                       Variant="Variant.Outlined"
+                                       Style="color: white;"
+                                       Lines="3" />
+                     </MudItem>
+                </MudGrid>
             </div>
         </DialogContent>
         <DialogActions>
@@ -398,14 +464,14 @@
                 <MudButton Variant="Variant.Text" 
                            Color="Color.Default" 
                            OnClick="CloseEditDialog">
-                    @Localizer.T("Dashboard.EditDialog.Cancel")
+                     @Localizer.T("Dashboard.EditDialog.Cancel")
                 </MudButton>
                 <MudButton Variant="Variant.Filled" 
                            Color="Color.Success" 
                            OnClick="SaveInvoiceChanges"
                            Style="background: linear-gradient(135deg, #049F6C 0%, #87D37C 100%); color: white; font-weight: 600;"
                            Class="px-4 py-2 rounded-pill">
-                    @Localizer.T("Dashboard.EditDialog.Save")
+                     @Localizer.T("Dashboard.EditDialog.Save")
                 </MudButton>
             </div>
         </DialogActions>
@@ -469,6 +535,9 @@
     private bool _isScanning = false;
     private readonly HashSet<int> _processingAiIds = new();
     
+    // Background queue status
+    private List<string> _processingQueue = new();
+
     // Expanded row state
     private readonly HashSet<int> _expandedInvoiceIds = new();
 
@@ -480,6 +549,12 @@
     private bool _editDialogVisible;
     private Factura? _editingFactura;
     private string _editClientName = string.Empty;
+    private string _editClientCuit = string.Empty;
+    private string _editClientVatType = string.Empty;
+    private string _editInvoiceType = string.Empty;
+    private string _editPointOfSale = string.Empty;
+    private string _editInvoiceNumber = string.Empty;
+    private DateTime? _editIssueDate;
     private decimal? _editTotalAmount;
     private string _editComments = string.Empty;
 
@@ -493,6 +568,13 @@
     { 
         CloseOnEscapeKey = true, 
         MaxWidth = MaxWidth.Small,
+        FullWidth = true
+    };
+
+    private readonly DialogOptions _editDialogOptions = new() 
+    { 
+        CloseOnEscapeKey = true, 
+        MaxWidth = MaxWidth.Medium,
         FullWidth = true
     };
 
@@ -514,9 +596,11 @@
     {
         await LoadDataAsync();
         
-        // Start watching for changes
+        // Start watching for changes and processing queue status
         FileScanner.OnFileDetected += HandleFileDetected;
+        FileScanner.OnProcessingQueueChanged += HandleProcessingQueueChanged;
         FileScanner.StartMonitoring();
+        LoadProcessingQueue();
 
         // Register JS download script if not registered
         await JS.InvokeVoidAsync("eval", @"
@@ -721,6 +805,12 @@
     {
         _editingFactura = factura;
         _editClientName = factura.ClientName ?? "";
+        _editClientCuit = factura.ClientCuit ?? "";
+        _editClientVatType = factura.ClientVatType ?? "";
+        _editInvoiceType = factura.InvoiceType ?? "";
+        _editPointOfSale = factura.PointOfSale ?? "";
+        _editInvoiceNumber = factura.InvoiceNumber ?? "";
+        _editIssueDate = factura.IssueDate;
         _editTotalAmount = factura.TotalAmount;
         _editComments = factura.Comments ?? "";
         _editDialogVisible = true;
@@ -743,9 +833,61 @@
             if (dbFactura != null)
             {
                 dbFactura.ClientName = _editClientName;
+                dbFactura.ClientCuit = _editClientCuit;
+                dbFactura.ClientVatType = _editClientVatType;
+                dbFactura.InvoiceType = _editInvoiceType;
+                dbFactura.PointOfSale = _editPointOfSale;
+                dbFactura.InvoiceNumber = _editInvoiceNumber;
+                dbFactura.IssueDate = _editIssueDate;
                 dbFactura.TotalAmount = _editTotalAmount;
                 dbFactura.Comments = _editComments;
                 
+                // Physical rename logic
+                if (dbFactura.Status == "Success" && File.Exists(dbFactura.FilePath))
+                {
+                    try
+                    {
+                        var settings = ConfigService.GetSettings();
+                        var fileInfo = new FileInfo(dbFactura.FilePath);
+                        string clientFolder = Path.Combine(settings.ScanningSettings.ProcessedFolderPath, CleanStringForFileName(dbFactura.ClientName ?? "SinCliente"));
+                        if (!Directory.Exists(clientFolder))
+                        {
+                            Directory.CreateDirectory(clientFolder);
+                        }
+
+                        var dummyResult = new AiExtractionResult
+                        {
+                            ClientName = dbFactura.ClientName,
+                            ClientCuit = dbFactura.ClientCuit,
+                            ClientVatType = dbFactura.ClientVatType,
+                            InvoiceType = dbFactura.InvoiceType,
+                            PointOfSale = dbFactura.PointOfSale,
+                            InvoiceNumber = dbFactura.InvoiceNumber,
+                            IssueDate = dbFactura.IssueDate
+                        };
+
+                        string logicalName = GetLogicalName(dummyResult, fileInfo.Name, fileInfo.Extension);
+                        string destinationPath = Path.Combine(clientFolder, logicalName);
+
+                        if (destinationPath != dbFactura.FilePath)
+                        {
+                            if (File.Exists(destinationPath))
+                            {
+                                string nameWithoutExt = Path.GetFileNameWithoutExtension(logicalName);
+                                destinationPath = Path.Combine(clientFolder, $"{nameWithoutExt}_{DateTime.Now:yyyyMMddHHmmss}{fileInfo.Extension}");
+                            }
+                            File.Move(dbFactura.FilePath, destinationPath);
+                            dbFactura.FilePath = destinationPath;
+                            dbFactura.FileName = Path.GetFileName(destinationPath);
+                            dbFactura.ProcessedPath = destinationPath;
+                        }
+                    }
+                    catch (Exception renameEx)
+                    {
+                        Console.WriteLine($"[Edit] Failed to rename/move file: {renameEx.Message}");
+                    }
+                }
+
                 await context.SaveChangesAsync();
                 
                 Snackbar.Add(Localizer.T("Dashboard.EditDialog.Success"), Severity.Success);
@@ -950,8 +1092,23 @@
         }
     }
 
+    private void HandleProcessingQueueChanged()
+    {
+        InvokeAsync(() =>
+        {
+            LoadProcessingQueue();
+            StateHasChanged();
+        });
+    }
+
+    private void LoadProcessingQueue()
+    {
+        _processingQueue = FileScanner.GetCurrentlyProcessingFiles().ToList();
+    }
+
     public void Dispose()
     {
         FileScanner.OnFileDetected -= HandleFileDetected;
+        FileScanner.OnProcessingQueueChanged -= HandleProcessingQueueChanged;
     }
 }

@@ -15,6 +15,8 @@ namespace RikiLoquitoContador.Core.Services
     {
         bool IsMonitoring { get; }
         event Action<Factura>? OnFileDetected;
+        event Action? OnProcessingQueueChanged;
+        System.Collections.Generic.IReadOnlyList<string> GetCurrentlyProcessingFiles();
         Task ScanFolderAsync();
         void StartMonitoring();
         void StopMonitoring();
@@ -28,11 +30,19 @@ namespace RikiLoquitoContador.Core.Services
         private readonly IExportService _exportService;
         private readonly ILogger<FileScannerService> _logger;
         private readonly ConcurrentDictionary<string, byte> _processingFiles = new();
+        private readonly ConcurrentDictionary<string, byte> _currentlyProcessing = new();
+        private readonly System.Threading.SemaphoreSlim _processingSemaphore = new(1, 1);
         private FileSystemWatcher? _watcher;
         private bool _isMonitoring;
 
         public bool IsMonitoring => _isMonitoring;
         public event Action<Factura>? OnFileDetected;
+        public event Action? OnProcessingQueueChanged;
+
+        public System.Collections.Generic.IReadOnlyList<string> GetCurrentlyProcessingFiles()
+        {
+            return _currentlyProcessing.Keys.Select(Path.GetFileName).ToList()!;
+        }
 
         private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png", ".pdf", ".doc", ".docx" };
 
@@ -266,12 +276,18 @@ namespace RikiLoquitoContador.Core.Services
 
         private async Task<Factura?> ProcessAndIndexFileAsync(AppDbContext context, string filePath)
         {
+            if (string.IsNullOrWhiteSpace(filePath)) return null;
+
+            _currentlyProcessing.TryAdd(filePath, 0);
+            OnProcessingQueueChanged?.Invoke();
+
             string hash = "";
             FileInfo? fileInfo = null;
             var settings = _configService.GetSettings();
             var processedFolder = settings.ScanningSettings.ProcessedFolderPath;
             var conflictsFolder = settings.ScanningSettings.ConflictsFolderPath;
 
+            await _processingSemaphore.WaitAsync();
             try
             {
                 if (!File.Exists(filePath)) return null;
@@ -453,6 +469,12 @@ namespace RikiLoquitoContador.Core.Services
                 }
 
                 return null;
+            }
+            finally
+            {
+                _processingSemaphore.Release();
+                _currentlyProcessing.TryRemove(filePath, out _);
+                OnProcessingQueueChanged?.Invoke();
             }
         }
 
