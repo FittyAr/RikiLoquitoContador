@@ -61,7 +61,12 @@ namespace RikiLoquitoContador.Tests
                 .Build();
 
             var configService = new ConfigService(configuration);
-            var scanner = new FileScannerService(configService, _dbFactory, NullLogger<FileScannerService>.Instance);
+            var scanner = new FileScannerService(
+                configService, 
+                _dbFactory, 
+                new FakeAiService(), 
+                new FakeExportService(), 
+                NullLogger<FileScannerService>.Instance);
 
             // Act
             await scanner.ScanFolderAsync();
@@ -106,5 +111,32 @@ namespace RikiLoquitoContador.Tests
         {
             return new AppDbContext(_options);
         }
+    }
+
+    public class FakeAiService : IAiService
+    {
+        public Task<(string? ClientName, decimal? TotalAmount, string? Comments)> AnalyzeInvoiceAsync(string filePath)
+        {
+            var name = Path.GetFileNameWithoutExtension(filePath);
+            var parts = name.Split('_');
+            var client = parts.Length > 0 ? parts[0] : "General";
+            if (client.Length > 0)
+            {
+                client = char.ToUpper(client[0]) + client.Substring(1).ToLower();
+            }
+            return Task.FromResult<(string?, decimal?, string?)>((client, 100.00m, "Comentario de prueba"));
+        }
+
+        public Task<List<string>> GetAvailableModelsAsync(string provider, string endpoint)
+        {
+            return Task.FromResult(new List<string> { "llama3", "mistral" });
+        }
+    }
+
+    public class FakeExportService : IExportService
+    {
+        public byte[] ExportToCsv(IEnumerable<Factura> facturas) => Array.Empty<byte>();
+        public byte[] ExportToJson(IEnumerable<Factura> facturas) => Array.Empty<byte>();
+        public Task ExportToExcelIncrementalAsync(IEnumerable<Factura> facturas, string filePath) => Task.CompletedTask;
     }
 }

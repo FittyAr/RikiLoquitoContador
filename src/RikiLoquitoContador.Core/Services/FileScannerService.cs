@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -23,7 +24,10 @@ namespace RikiLoquitoContador.Core.Services
     {
         private readonly IConfigService _configService;
         private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IAiService _aiService;
+        private readonly IExportService _exportService;
         private readonly ILogger<FileScannerService> _logger;
+        private readonly ConcurrentDictionary<string, byte> _processingFiles = new();
         private FileSystemWatcher? _watcher;
         private bool _isMonitoring;
 
@@ -35,10 +39,14 @@ namespace RikiLoquitoContador.Core.Services
         public FileScannerService(
             IConfigService configService,
             IDbContextFactory<AppDbContext> dbContextFactory,
+            IAiService aiService,
+            IExportService exportService,
             ILogger<FileScannerService> logger)
         {
             _configService = configService;
             _dbContextFactory = dbContextFactory;
+            _aiService = aiService;
+            _exportService = exportService;
             _logger = logger;
         }
 
@@ -130,13 +138,16 @@ namespace RikiLoquitoContador.Core.Services
             var ext = Path.GetExtension(e.FullPath).ToLowerInvariant();
             if (!AllowedExtensions.Contains(ext)) return;
 
+            // Prevent concurrent runs for the exact same file path (e.g. concurrent Created and Changed events)
+            if (!_processingFiles.TryAdd(e.FullPath, 0)) return;
+
             // Run in background task to avoid blocking the FileSystemWatcher thread
             Task.Run(async () =>
             {
-                // Wait briefly for file write to complete
-                await Task.Delay(500);
                 try
                 {
+                    // Wait a bit longer (1000ms) to ensure file writes are complete and file handles released
+                    await Task.Delay(1000);
                     using var context = await _dbContextFactory.CreateDbContextAsync();
                     var factura = await ProcessAndIndexFileAsync(context, e.FullPath);
                     if (factura != null)
@@ -148,6 +159,10 @@ namespace RikiLoquitoContador.Core.Services
                 {
                     _logger.LogError(ex, "Error processing event for file {FilePath}", e.FullPath);
                 }
+                finally
+                {
+                    _processingFiles.TryRemove(e.FullPath, out _);
+                }
             });
         }
 
@@ -155,6 +170,8 @@ namespace RikiLoquitoContador.Core.Services
         {
             var ext = Path.GetExtension(e.FullPath).ToLowerInvariant();
             if (!AllowedExtensions.Contains(ext)) return;
+
+            if (!_processingFiles.TryAdd(e.FullPath, 0)) return;
 
             Task.Run(async () =>
             {
@@ -183,6 +200,10 @@ namespace RikiLoquitoContador.Core.Services
                 {
                     _logger.LogError(ex, "Error processing rename event from {OldPath} to {NewPath}", e.OldFullPath, e.FullPath);
                 }
+                finally
+                {
+                    _processingFiles.TryRemove(e.FullPath, out _);
+                }
             });
         }
 
@@ -197,6 +218,16 @@ namespace RikiLoquitoContador.Core.Services
                 if (existing != null) return null;
 
                 var fileInfo = new FileInfo(filePath);
+                _logger.LogInformation("Analyzing file with AI before indexing: {FileName}", fileInfo.Name);
+
+                var (clientName, totalAmount, comments) = await _aiService.AnalyzeInvoiceAsync(fileInfo.FullName);
+                
+                // Re-verify file existence after the long-running AI request to prevent FileNotFoundException
+                if (!File.Exists(filePath))
+                {
+                    _logger.LogWarning("File was deleted or moved during AI analysis: {FilePath}", filePath);
+                    return null;
+                }
                 
                 var factura = new Factura
                 {
@@ -206,15 +237,41 @@ namespace RikiLoquitoContador.Core.Services
                     FileSizeBytes = fileInfo.Length,
                     FileCreatedAt = fileInfo.CreationTime,
                     IndexedAt = DateTime.UtcNow,
-                    // Basic heuristic for clients: filename before first space or hyphen, or "Desconocido"
-                    ClientName = ExtractClientNameHeuristic(fileInfo.Name),
-                    TotalAmount = null,
-                    Comments = string.Empty
+                    ClientName = clientName ?? "Fallo IA",
+                    TotalAmount = totalAmount,
+                    Comments = comments ?? string.Empty
                 };
 
                 context.Facturas.Add(factura);
                 await context.SaveChangesAsync();
-                _logger.LogInformation("Indexed new invoice: {FileName}", factura.FileName);
+                _logger.LogInformation("Indexed new invoice: {FileName} with client {ClientName} and total {TotalAmount}", 
+                    factura.FileName, factura.ClientName, factura.TotalAmount);
+
+                // Auto-sync to Excel immediately if configured
+                var settings = _configService.GetSettings();
+                var excelPath = settings.ScanningSettings.ExcelFilePath;
+                if (string.IsNullOrWhiteSpace(excelPath))
+                {
+                    var folder = settings.ScanningSettings.WatchFolderPath;
+                    if (!string.IsNullOrWhiteSpace(folder))
+                    {
+                        excelPath = Path.Combine(folder, "FacturasSincronizadas.xlsx");
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(excelPath))
+                {
+                    try
+                    {
+                        await _exportService.ExportToExcelIncrementalAsync(new[] { factura }, excelPath);
+                        _logger.LogInformation("Auto-synchronized new invoice {FileName} to Excel.", factura.FileName);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to auto-synchronize new invoice {FileName} to Excel", factura.FileName);
+                    }
+                }
+
                 return factura;
             }
             catch (Exception ex)
@@ -222,18 +279,6 @@ namespace RikiLoquitoContador.Core.Services
                 _logger.LogError(ex, "Failed to index file {FilePath}", filePath);
                 return null;
             }
-        }
-
-        private string ExtractClientNameHeuristic(string fileName)
-        {
-            var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-            var parts = nameWithoutExt.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 0 && parts[0].Length > 2)
-            {
-                // Capitalize first part
-                return char.ToUpper(parts[0][0]) + parts[0].Substring(1).ToLowerInvariant();
-            }
-            return "General";
         }
 
         public void Dispose()

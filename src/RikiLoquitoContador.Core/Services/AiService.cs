@@ -1,0 +1,388 @@
+using System;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Xml.Linq;
+using Microsoft.Extensions.Logging;
+using RikiLoquitoContador.Core.Models;
+
+namespace RikiLoquitoContador.Core.Services
+{
+    public class AiService : IAiService
+    {
+        private readonly IConfigService _configService;
+        private readonly ILogger<AiService> _logger;
+        private static readonly HttpClient _client = new HttpClient();
+
+        public AiService(
+            IConfigService configService,
+            ILogger<AiService> logger)
+        {
+            _configService = configService;
+            _logger = logger;
+        }
+
+        public async Task<(string? ClientName, decimal? TotalAmount, string? Comments)> AnalyzeInvoiceAsync(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                _logger.LogWarning("File not found for AI analysis: {FilePath}", filePath);
+                return (null, null, "Archivo no encontrado.");
+            }
+
+            var settings = _configService.GetSettings();
+            var aiSettings = settings.AiSettings;
+
+            bool isLocalProvider = aiSettings.Provider != null && 
+                                  (aiSettings.Provider.Contains("Ollama") || 
+                                   aiSettings.Provider.Contains("LM Studio") || 
+                                   aiSettings.Provider.Contains("Compatible"));
+
+            if (!isLocalProvider && string.IsNullOrWhiteSpace(aiSettings.ApiKey))
+            {
+                _logger.LogWarning("AI API Key is not configured in settings.");
+                return (null, null, "Error: La API Key de la IA no está configurada.");
+            }
+
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            bool isOllamaNative = aiSettings.Provider == "Ollama" || (aiSettings.Endpoint != null && aiSettings.Endpoint.Contains("/api/chat"));
+            
+            try
+            {
+                object requestPayload;
+
+                if (ext == ".png" || ext == ".jpg" || ext == ".jpeg")
+                {
+                    // For image files, read bytes and send base64 data to enable visual analysis
+                    byte[] imageBytes = await File.ReadAllBytesAsync(filePath);
+                    string base64String = Convert.ToBase64String(imageBytes);
+                    string mimeType = ext == ".png" ? "image/png" : "image/jpeg";
+
+                    if (isOllamaNative)
+                    {
+                        requestPayload = new
+                        {
+                            model = aiSettings.ModelName,
+                            messages = new[]
+                            {
+                                new
+                                {
+                                    role = "user",
+                                    content = "Analiza esta imagen de factura e identifica: 1. El nombre del cliente o emisor/proveedor (ClientName), 2. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal, 3. Un resumen muy breve de los conceptos, número de factura o fecha si están visibles (Comments). DEBES retornar ÚNICAMENTE un objeto JSON válido con el esquema: {\"ClientName\": \"string\", \"TotalAmount\": 123.45, \"Comments\": \"string\"}. No formatees con markdown (no uses ```json), retorna solo el JSON puro.",
+                                    images = new[] { base64String }
+                                }
+                            },
+                            stream = false,
+                            options = new { temperature = 0.1 }
+                        };
+                    }
+                    else
+                    {
+                        requestPayload = new
+                        {
+                            model = aiSettings.ModelName,
+                            messages = new[]
+                            {
+                                new
+                                {
+                                    role = "user",
+                                    content = new object[]
+                                    {
+                                        new
+                                        {
+                                            type = "text",
+                                            text = "Analiza esta imagen de factura e identifica: 1. El nombre del cliente o emisor/proveedor (ClientName), 2. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal, 3. Un resumen muy breve de los conceptos, número de factura o fecha si están visibles (Comments). DEBES retornar ÚNICAMENTE un objeto JSON válido con el esquema: {\"ClientName\": \"string\", \"TotalAmount\": 123.45, \"Comments\": \"string\"}. No formatees con markdown (no uses ```json), retorna solo el JSON puro."
+                                        },
+                                        new
+                                        {
+                                            type = "image_url",
+                                            image_url = new
+                                            {
+                                                url = $"data:{mimeType};base64,{base64String}"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            temperature = 0.1
+                        };
+                    }
+                }
+                else
+                {
+                    // For document files, extract text first
+                    string extractedText = string.Empty;
+                    if (ext == ".pdf")
+                    {
+                        extractedText = ExtractTextFromPdf(filePath);
+                    }
+                    else if (ext == ".docx")
+                    {
+                        extractedText = ExtractTextFromDocx(filePath);
+                    }
+                    else if (ext == ".doc")
+                    {
+                        extractedText = ExtractTextFromDoc(filePath);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(extractedText))
+                    {
+                        _logger.LogWarning("No text could be extracted from document: {FilePath}", filePath);
+                        return (null, null, "No se pudo extraer texto del documento.");
+                    }
+
+                    if (isOllamaNative)
+                    {
+                        requestPayload = new
+                        {
+                            model = aiSettings.ModelName,
+                            messages = new[]
+                            {
+                                new
+                                {
+                                    role = "user",
+                                    content = "Analiza el siguiente texto extraído de una factura e identifica: 1. El nombre del cliente o emisor/proveedor (ClientName), 2. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal, 3. Un resumen muy breve de los conceptos, número de factura o fecha si están visibles (Comments). DEBES retornar ÚNICAMENTE un objeto JSON válido con el esquema: {\"ClientName\": \"string\", \"TotalAmount\": 123.45, \"Comments\": \"string\"}. No formatees con markdown (no uses ```json), retorna solo el JSON puro.\n\n[TEXTO DE LA FACTURA]:\n" + extractedText
+                                }
+                            },
+                            stream = false,
+                            options = new { temperature = 0.1 }
+                        };
+                    }
+                    else
+                    {
+                        requestPayload = new
+                        {
+                            model = aiSettings.ModelName,
+                            messages = new[]
+                            {
+                                new
+                                {
+                                    role = "user",
+                                    content = new object[]
+                                    {
+                                        new
+                                        {
+                                            type = "text",
+                                            text = "Analiza el siguiente texto extraído de una factura e identifica: 1. El nombre del cliente o emisor/proveedor (ClientName), 2. El monto total de la factura como número decimal sin símbolos de moneda (TotalAmount), usando punto como separador decimal, 3. Un resumen muy breve de los conceptos, número de factura o fecha si están visibles (Comments). DEBES retornar ÚNICAMENTE un objeto JSON válido con el esquema: {\"ClientName\": \"string\", \"TotalAmount\": 123.45, \"Comments\": \"string\"}. No formatees con markdown (no uses ```json), retorna solo el JSON puro.\n\n[TEXTO DE LA FACTURA]:\n" + extractedText
+                                        }
+                                    }
+                                }
+                            },
+                            temperature = 0.1
+                        };
+                    }
+                }
+
+                var jsonPayload = JsonSerializer.Serialize(requestPayload);
+                var httpContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+                string? targetEndpoint = aiSettings.Endpoint;
+                if (!isOllamaNative && !string.IsNullOrWhiteSpace(targetEndpoint))
+                {
+                    if (targetEndpoint.EndsWith("/v1"))
+                    {
+                        targetEndpoint += "/chat/completions";
+                    }
+                    else if (targetEndpoint.EndsWith("/v1/"))
+                    {
+                        targetEndpoint += "chat/completions";
+                    }
+                }
+
+                _logger.LogInformation("Sending invoice data to AI endpoint: {Endpoint} using model {Model}", targetEndpoint, aiSettings.ModelName);
+                
+                using var request = new HttpRequestMessage(HttpMethod.Post, targetEndpoint);
+                if (!string.IsNullOrWhiteSpace(aiSettings.ApiKey))
+                {
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", aiSettings.ApiKey);
+                }
+                request.Content = httpContent;
+
+                var response = await _client.SendAsync(request);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    string errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogError("AI API returned error status {StatusCode}: {ErrorContent}", response.StatusCode, errorContent);
+                    return (null, null, $"Error de API ({response.StatusCode}): {errorContent}");
+                }
+
+                string responseString = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(responseString);
+                var root = doc.RootElement;
+                
+                string? rawContent = null;
+                
+                if (root.TryGetProperty("message", out var ollamaMessage) && 
+                    ollamaMessage.TryGetProperty("content", out var ollamaContentProp))
+                {
+                    rawContent = ollamaContentProp.GetString();
+                }
+                else if (root.TryGetProperty("choices", out var choices) && 
+                         choices.GetArrayLength() > 0 && 
+                         choices[0].TryGetProperty("message", out var openAiMessage) && 
+                         openAiMessage.TryGetProperty("content", out var openAiContentProp))
+                {
+                    rawContent = openAiContentProp.GetString();
+                }
+
+                if (string.IsNullOrWhiteSpace(rawContent))
+                {
+                    return (null, null, "Respuesta vacía o formato desconocido recibida de la IA.");
+                }
+
+                return ParseResponse(rawContent);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception during AI invoice analysis for {FilePath}", filePath);
+                return (null, null, $"Fallo de conexión o análisis de la IA: {ex.Message}");
+            }
+        }
+
+        private (string? ClientName, decimal? TotalAmount, string? Comments) ParseResponse(string rawResponse)
+        {
+            int start = rawResponse.IndexOf('{');
+            int end = rawResponse.LastIndexOf('}');
+            if (start >= 0 && end > start)
+            {
+                string json = rawResponse.Substring(start, end - start + 1);
+                try
+                {
+                    var result = JsonSerializer.Deserialize<AiInvoiceResult>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    if (result != null)
+                    {
+                        return (result.ClientName, result.TotalAmount, result.Comments);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to parse JSON extracted from AI response. JSON string: {Json}", json);
+                }
+            }
+            
+            return (null, null, "Error al decodificar la respuesta JSON estructurada de la IA. Respuesta cruda: " + rawResponse);
+        }
+
+        private string ExtractTextFromPdf(string filePath)
+        {
+            try
+            {
+                using var document = UglyToad.PdfPig.PdfDocument.Open(filePath);
+                var sb = new StringBuilder();
+                foreach (var page in document.GetPages())
+                {
+                    sb.AppendLine(page.Text);
+                }
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error extracting text from PDF '{FilePath}' using PdfPig", filePath);
+                return string.Empty;
+            }
+        }
+
+        private string ExtractTextFromDocx(string filePath)
+        {
+            try
+            {
+                using var fileStream = File.OpenRead(filePath);
+                using var archive = new ZipArchive(fileStream);
+                var entry = archive.GetEntry("word/document.xml");
+                if (entry == null) return string.Empty;
+
+                using var entryStream = entry.Open();
+                var doc = XDocument.Load(entryStream);
+                
+                XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+                var texts = doc.Descendants(w + "t").Select(t => t.Value);
+                return string.Join(" ", texts);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error extracting text from DOCX '{FilePath}'", filePath);
+                return string.Empty;
+            }
+        }
+
+        private string ExtractTextFromDoc(string filePath)
+        {
+            return "El formato DOC antiguo no está soportado. Conviértalo a DOCX o PDF para extraer texto.";
+        }
+
+        public async Task<System.Collections.Generic.List<string>> GetAvailableModelsAsync(string provider, string endpoint)
+        {
+            var modelsList = new System.Collections.Generic.List<string>();
+            
+            // Extract base url for Ollama
+            string baseUrl = "http://localhost:11434";
+            if (!string.IsNullOrWhiteSpace(endpoint))
+            {
+                try
+                {
+                    var uri = new Uri(endpoint);
+                    baseUrl = $"{uri.Scheme}://{uri.Authority}";
+                }
+                catch
+                {
+                    // Fallback to default localhost
+                }
+            }
+
+            string tagsEndpoint = $"{baseUrl}/api/tags";
+            _logger.LogInformation("Scanning Ollama models from: {TagsEndpoint}", tagsEndpoint);
+
+            try
+            {
+                var response = await _client.GetAsync(tagsEndpoint);
+                if (response.IsSuccessStatusCode)
+                {
+                    string content = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(content);
+                    if (doc.RootElement.TryGetProperty("models", out var modelsArray) && 
+                        modelsArray.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in modelsArray.EnumerateArray())
+                        {
+                            if (item.TryGetProperty("name", out var nameProp))
+                            {
+                                string? modelName = nameProp.GetString();
+                                if (!string.IsNullOrEmpty(modelName))
+                                {
+                                    modelsList.Add(modelName);
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Ollama tags endpoint returned status {StatusCode}", response.StatusCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to query Ollama models at {TagsEndpoint}", tagsEndpoint);
+                throw new InvalidOperationException($"No se pudo conectar a Ollama en {baseUrl}. Asegúrese de que Ollama está ejecutándose. Detalle: {ex.Message}", ex);
+            }
+
+            return modelsList;
+        }
+
+        private class AiInvoiceResult
+        {
+            public string? ClientName { get; set; }
+            public decimal? TotalAmount { get; set; }
+            public string? Comments { get; set; }
+        }
+    }
+}

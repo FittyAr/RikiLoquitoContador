@@ -26,6 +26,7 @@ builder.Services.AddSingleton<IFileScannerService, FileScannerService>();
 builder.Services.AddSingleton<IExportService, ExportService>();
 builder.Services.AddSingleton<II18nService, I18nService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddSingleton<IAiService, AiService>();
 
 var app = builder.Build();
 

@@ -1,5 +1,6 @@
 @inject IConfigService ConfigService
 @inject IFileScannerService FileScanner
+@inject IAiService AiService
 @inject II18nService Localizer
 @inject ISnackbar Snackbar
 
@@ -283,12 +284,44 @@
                                         </MudSelect>
                                     </MudItem>
                                     <MudItem xs="12" md="6">
-                                        <MudTextField @bind-Value="_aiModelName"
-                                                      Label="@Localizer.T("Settings.AiModel")"
-                                                      Variant="Variant.Outlined"
-                                                      Margin="Margin.Dense"
-                                                      Style="color: white;"
-                                                      Required="true" />
+                                        <div class="d-flex align-center gap-2">
+                                            @if (_ollamaModels.Any() && (_selectedProvider.Contains("Ollama") || _selectedProvider == "Personalizado"))
+                                            {
+                                                <MudSelect T="string"
+                                                           Label="@Localizer.T("Settings.AiModel")"
+                                                           @bind-Value="_aiModelName"
+                                                           Variant="Variant.Outlined"
+                                                           Margin="Margin.Dense"
+                                                           Style="color: white; flex-grow: 1;"
+                                                           Required="true">
+                                                    @foreach (var model in _ollamaModels)
+                                                    {
+                                                        <MudSelectItem Value="@model">@model</MudSelectItem>
+                                                    }
+                                                </MudSelect>
+                                            }
+                                            else
+                                            {
+                                                <MudTextField @bind-Value="_aiModelName"
+                                                              Label="@Localizer.T("Settings.AiModel")"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              Style="color: white; flex-grow: 1;"
+                                                              Required="true" />
+                                            }
+                                            
+                                            @if (_selectedProvider.Contains("Ollama") || _selectedProvider == "Personalizado")
+                                            {
+                                                <MudTooltip Text="Escanear y consultar modelos disponibles en Ollama">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Search"
+                                                                   Color="Color.Info"
+                                                                   OnClick="ScanOllamaModels"
+                                                                   Disabled="_scanningModels"
+                                                                   Size="Size.Medium"
+                                                                   Style="margin-top: 4px;" />
+                                                </MudTooltip>
+                                            }
+                                        </div>
                                     </MudItem>
                                     <MudItem xs="12">
                                         <MudTextField @bind-Value="_aiEndpoint"
@@ -357,6 +390,8 @@
     private bool _apiKeyVisibility = false;
     private InputType _apiKeyInputType => _apiKeyVisibility ? InputType.Text : InputType.Password;
     private string _apiKeyInputIcon => _apiKeyVisibility ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff;
+    private List<string> _ollamaModels = new();
+    private bool _scanningModels = false;
 
     private struct AiPreset
     {
@@ -370,7 +405,10 @@
         { "Gemini", new AiPreset { Endpoint = "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions", ModelName = "gemini-1.5-flash" } },
         { "Kimi", new AiPreset { Endpoint = "https://api.moonshot.cn/v1/chat/completions", ModelName = "moonshot-v1-8k" } },
         { "Qwen", new AiPreset { Endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", ModelName = "qwen-turbo" } },
-        { "Ollama (Local)", new AiPreset { Endpoint = "http://localhost:11434/v1/chat/completions", ModelName = "llama3" } },
+        { "Ollama", new AiPreset { Endpoint = "http://localhost:11434/api/chat", ModelName = "llama3" } },
+        { "Ollama (OpenAI Compat)", new AiPreset { Endpoint = "http://localhost:11434/v1/chat/completions", ModelName = "llama3" } },
+        { "OpenAI Compatible (Local/Red)", new AiPreset { Endpoint = "http://localhost:8000/v1/chat/completions", ModelName = "custom-model" } },
+        { "OpenCode", new AiPreset { Endpoint = "https://api.opencode.ai/v1/chat/completions", ModelName = "opencode-go" } },
         { "LM Studio (Local)", new AiPreset { Endpoint = "http://localhost:1234/v1/chat/completions", ModelName = "meta-llama-3-8b-instruct" } },
         { "Personalizado", new AiPreset { Endpoint = "", ModelName = "" } }
     };
@@ -440,6 +478,40 @@
                 _aiEndpoint = preset.Endpoint;
                 _aiModelName = preset.ModelName;
             }
+        }
+        _ollamaModels.Clear(); // Clear scanned models when changing provider
+    }
+
+    private async Task ScanOllamaModels()
+    {
+        _scanningModels = true;
+        StateHasChanged();
+        try
+        {
+            Snackbar.Add("Conectando con Ollama para escanear modelos...", Severity.Info);
+            var models = await AiService.GetAvailableModelsAsync(_selectedProvider, _aiEndpoint);
+            if (models != null && models.Any())
+            {
+                _ollamaModels = models;
+                if (!_ollamaModels.Contains(_aiModelName) && _ollamaModels.Any())
+                {
+                    _aiModelName = _ollamaModels.First();
+                }
+                Snackbar.Add($"Se encontraron {models.Count} modelos locales en Ollama.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("No se encontraron modelos locales en Ollama. Asegúrese de que el servidor está corriendo.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al conectar con Ollama: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _scanningModels = false;
+            StateHasChanged();
         }
     }
 
