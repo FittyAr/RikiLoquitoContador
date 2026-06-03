@@ -76,6 +76,7 @@ namespace RikiLoquitoContador.Core.Services
                     // Default to 'contador123'
                     defaultSettings.SecuritySettings.PasswordHash = "$2a$11$9/X4yDqC3G3bYfCdfp/juef6u8bQ/bK1dM1oF3L0H5U1tT8rP/Cxe";
                     defaultSettings.ScanningSettings.WatchFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "FacturasContador");
+                    defaultSettings.ScanningSettings.ExcelFilePath = Path.Combine(defaultSettings.ScanningSettings.WatchFolderPath, "FacturasSincronizadas.xlsx");
                     defaultSettings.ScanningSettings.ScanIntervalSeconds = 10;
                     defaultSettings.ConnectionStrings.DefaultConnection = $"Data Source={Path.Combine(directory ?? "", "facturas.db")}";
 
@@ -108,6 +109,7 @@ namespace RikiLoquitoContador.Core.Services
                     {
                         _cachedSettings = settings;
                         Console.WriteLine($"[ConfigService] Loaded settings. Hash: '{_cachedSettings.SecuritySettings.PasswordHash}'");
+                        OverrideFromConfiguration();
                         return;
                     }
                 }
@@ -118,9 +120,48 @@ namespace RikiLoquitoContador.Core.Services
             }
 
             // Bind from DI Configuration
+            BindAllFromConfiguration();
+        }
+
+        private void OverrideFromConfiguration()
+        {
+            var defaultConn = _configuration.GetConnectionString("DefaultConnection");
+            if (defaultConn != null) _cachedSettings.ConnectionStrings.DefaultConnection = defaultConn;
+
+            var passwordHash = _configuration["SecuritySettings:PasswordHash"];
+            if (passwordHash != null) _cachedSettings.SecuritySettings.PasswordHash = passwordHash;
+
+            var watchFolder = _configuration["ScanningSettings:WatchFolderPath"];
+            if (watchFolder != null) _cachedSettings.ScanningSettings.WatchFolderPath = watchFolder;
+
+            var excelPath = _configuration["ScanningSettings:ExcelFilePath"];
+            if (excelPath != null) _cachedSettings.ScanningSettings.ExcelFilePath = excelPath;
+
+            var intervalStr = _configuration["ScanningSettings:ScanIntervalSeconds"];
+            if (int.TryParse(intervalStr, out int interval))
+            {
+                _cachedSettings.ScanningSettings.ScanIntervalSeconds = interval;
+            }
+
+            var aiProvider = _configuration["AiSettings:Provider"];
+            if (aiProvider != null) _cachedSettings.AiSettings.Provider = aiProvider;
+
+            var aiEndpoint = _configuration["AiSettings:Endpoint"];
+            if (aiEndpoint != null) _cachedSettings.AiSettings.Endpoint = aiEndpoint;
+
+            var aiModel = _configuration["AiSettings:ModelName"];
+            if (aiModel != null) _cachedSettings.AiSettings.ModelName = aiModel;
+
+            var aiApiKey = _configuration["AiSettings:ApiKey"];
+            if (aiApiKey != null) _cachedSettings.AiSettings.ApiKey = aiApiKey;
+        }
+
+        private void BindAllFromConfiguration()
+        {
             _cachedSettings.ConnectionStrings.DefaultConnection = _configuration.GetConnectionString("DefaultConnection") ?? "Data Source=facturas.db";
             _cachedSettings.SecuritySettings.PasswordHash = _configuration["SecuritySettings:PasswordHash"] ?? string.Empty;
             _cachedSettings.ScanningSettings.WatchFolderPath = _configuration["ScanningSettings:WatchFolderPath"] ?? string.Empty;
+            _cachedSettings.ScanningSettings.ExcelFilePath = _configuration["ScanningSettings:ExcelFilePath"] ?? string.Empty;
             
             if (int.TryParse(_configuration["ScanningSettings:ScanIntervalSeconds"], out int interval))
             {

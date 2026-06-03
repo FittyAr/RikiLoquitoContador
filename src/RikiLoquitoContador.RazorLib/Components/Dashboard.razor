@@ -433,14 +433,27 @@
         try
         {
             var settings = ConfigService.GetSettings();
-            var folder = settings.ScanningSettings.WatchFolderPath;
-            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            var excelPath = settings.ScanningSettings.ExcelFilePath;
+
+            if (string.IsNullOrWhiteSpace(excelPath))
             {
-                Snackbar.Add("Configure una carpeta válida antes de sincronizar a Excel.", Severity.Warning);
-                return;
+                var folder = settings.ScanningSettings.WatchFolderPath;
+                if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                {
+                    Snackbar.Add("Configure una carpeta válida o una ruta de Excel antes de sincronizar.", Severity.Warning);
+                    return;
+                }
+                excelPath = Path.Combine(folder, "FacturasSincronizadas.xlsx");
+            }
+            else
+            {
+                var dir = Path.GetDirectoryName(excelPath);
+                if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
             }
 
-            var excelPath = Path.Combine(folder, "FacturasSincronizadas.xlsx");
             await ExportService.ExportToExcelIncrementalAsync(FilteredFacturas, excelPath);
             Snackbar.Add($"Sincronización incremental de Excel completada: {excelPath}", Severity.Success);
         }

@@ -3,7 +3,76 @@
 @inject II18nService Localizer
 @inject ISnackbar Snackbar
 
-<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6 mb-8">
+<style>
+    /* Styling for the MudTabs vertical container */
+    .settings-tabs.mud-tabs-vertical {
+        min-height: 480px !important;
+    }
+    
+    .settings-tabs .mud-tabs-tabbar-vertical {
+        background: rgba(0, 0, 0, 0.2) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+        min-width: 240px !important;
+        width: 240px !important;
+        padding: 16px 8px !important;
+    }
+
+    .settings-tabs .mud-tabs-panels {
+        flex-grow: 1 !important;
+        padding-left: 12px !important;
+    }
+
+    /* Style for each individual tab button */
+    .settings-tabs .mud-tab {
+        justify-content: flex-start !important;
+        text-align: left !important;
+        padding: 12px 16px !important;
+        margin: 6px 8px !important;
+        border-radius: 8px !important;
+        color: rgba(255, 255, 255, 0.7) !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        text-transform: none !important; /* Avoid all-caps */
+        font-weight: 500 !important;
+        font-size: 0.92rem !important;
+        letter-spacing: 0.2px !important;
+    }
+
+    /* Icon spacing and coloring inside tab */
+    .settings-tabs .mud-tab .mud-tab-icon {
+        margin-right: 12px !important;
+        margin-bottom: 0 !important; /* Reset vertical centering for text alignment */
+        color: rgba(255, 255, 255, 0.5) !important;
+        transition: color 0.25s ease !important;
+    }
+
+    /* Hover state */
+    .settings-tabs .mud-tab:hover {
+        background: rgba(194, 254, 113, 0.05) !important;
+        color: #C2FE71 !important;
+    }
+    
+    .settings-tabs .mud-tab:hover .mud-tab-icon {
+        color: #C2FE71 !important;
+    }
+
+    /* Active state styling */
+    .settings-tabs .mud-tab-active {
+        background: rgba(194, 254, 113, 0.12) !important;
+        color: #C2FE71 !important;
+        font-weight: 600 !important;
+    }
+    
+    .settings-tabs .mud-tab-active .mud-tab-icon {
+        color: #C2FE71 !important;
+    }
+
+    /* Hide the default slider underbar */
+    .settings-tabs .mud-tab-slider {
+        display: none !important;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6 mb-8">
     <MudCard Elevation="8" Class="rounded-lg" Style="background: rgba(33, 33, 33, 0.85); color: white; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px);">
         <MudCardHeader>
             <CardHeaderContent>
@@ -17,167 +86,235 @@
         </MudCardHeader>
 
         <MudCardContent>
-            <MudForm @ref="_form" @bind-IsValid="_isValid" Class="d-flex flex-column gap-6">
-                
-                <!-- SECCIÓN 1: MONITOREO DE CARPETAS -->
-                <div>
-                    <div class="d-flex align-center mb-4">
-                        <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Success" Class="mr-2" />
-                        <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
-                            Monitoreo de Archivos
-                        </MudText>
-                    </div>
+            <MudForm @ref="_form" @bind-IsValid="_isValid">
+                <MudTabs Position="Position.Left" 
+                         KeepPanelsAlive="true" 
+                         Color="Color.Transparent" 
+                         IconColor="Color.Success" 
+                         SliderColor="Color.Success"
+                         Class="rounded-lg settings-tabs" 
+                         Style="background: transparent;">
+                    
+                    <!-- PESTAÑA 1: MONITOREO Y EXCEL -->
+                    <MudTabPanel Text="Monitoreo y Excel" Icon="@Icons.Material.Filled.Folder">
+                        <div class="px-6 py-4 d-flex flex-column gap-6">
+                            <div>
+                                <div class="d-flex align-center mb-4">
+                                    <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Success" Class="mr-2" />
+                                    <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                                        Monitoreo de Archivos
+                                    </MudText>
+                                </div>
 
-                    <MudGrid>
-                        <MudItem xs="12" md="8">
-                            <MudTextField @bind-Value="_watchFolderPath"
-                                          Label="@Localizer.T("Settings.FolderPath")"
-                                          Variant="Variant.Outlined"
-                                          Margin="Margin.Dense"
-                                          Style="color: white;"
-                                          Required="true"
-                                          Placeholder="C:\FacturasContador"
-                                          Adornment="Adornment.Start"
-                                          AdornmentIcon="@Icons.Material.Filled.Folder" />
-                        </MudItem>
-                        <MudItem xs="12" md="4" Class="d-flex align-center">
-                            @if (_directoryExists)
-                            {
-                                <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CheckCircle">Existe</MudChip>
-                            }
-                            else
-                            {
-                                <MudChip T="string" Color="Color.Warning" Variant="Variant.Text" Icon="@Icons.Material.Filled.Warning">No existe</MudChip>
-                            }
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudText Typo="Typo.caption" Class="mud-text-secondary mt-1">
-                                La carpeta donde el contador depositará las facturas en formato JPG, PNG, PDF o DOCX.
-                            </MudText>
-                        </MudItem>
-                        <MudItem xs="12" md="6">
-                            <MudNumericField @bind-Value="_scanInterval"
-                                             Label="Intervalo de Escaneo (Segundos)"
-                                             Variant="Variant.Outlined"
-                                             Margin="Margin.Dense"
-                                             Style="color: white;"
-                                             Min="5"
-                                             Max="3600" />
-                        </MudItem>
-                    </MudGrid>
-                </div>
+                                <MudGrid>
+                                    <MudItem xs="12" md="9">
+                                        <MudTextField @bind-Value="_watchFolderPath"
+                                                      Label="@Localizer.T("Settings.FolderPath")"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Required="true"
+                                                      Placeholder="C:\FacturasContador"
+                                                      Adornment="Adornment.Start"
+                                                      AdornmentIcon="@Icons.Material.Filled.Folder" />
+                                    </MudItem>
+                                    <MudItem xs="12" md="3" Class="d-flex align-center">
+                                        @if (_directoryExists)
+                                        {
+                                            <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CheckCircle">Existe</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Color="Color.Warning" Variant="Variant.Text" Icon="@Icons.Material.Filled.Warning">No existe</MudChip>
+                                        }
+                                    </MudItem>
+                                    <MudItem xs="12">
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                            La carpeta donde el contador depositará las facturas en formato JPG, PNG, PDF o DOCX.
+                                        </MudText>
+                                    </MudItem>
+                                    <MudItem xs="12" md="6">
+                                        <MudNumericField @bind-Value="_scanInterval"
+                                                         Label="Intervalo de Escaneo (Segundos)"
+                                                         Variant="Variant.Outlined"
+                                                         Margin="Margin.Dense"
+                                                         Style="color: white;"
+                                                         Min="5"
+                                                         Max="3600" />
+                                    </MudItem>
+                                </MudGrid>
+                            </div>
 
-                <MudDivider Style="background-color: rgba(255, 255, 255, 0.1);" />
+                            <MudDivider Style="background-color: rgba(255, 255, 255, 0.1);" />
 
-                <!-- SECCIÓN 2: SEGURIDAD (CAMBIO DE CONTRASEÑA) -->
-                <div>
-                    <div class="d-flex align-center mb-4">
-                        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Success" Class="mr-2" />
-                        <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
-                            @Localizer.T("Settings.SecuritySection")
-                        </MudText>
-                    </div>
+                            <div>
+                                <div class="d-flex align-center mb-4">
+                                    <MudIcon Icon="@Icons.Material.Filled.GridOn" Color="Color.Success" Class="mr-2" />
+                                    <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                                        Sincronización a Excel
+                                    </MudText>
+                                </div>
 
-                    <div class="mb-4">
-                        <MudAlert Severity="Severity.Info" 
-                                  Variant="Variant.Outlined" 
-                                  Class="rounded-lg border-dashed"
-                                  Icon="@Icons.Material.Filled.Lock"
-                                  Style="color: #A5D6A7; border-color: rgba(165, 214, 167, 0.4);">
-                            @Localizer.T("Settings.PasswordHelp")
-                        </MudAlert>
-                    </div>
+                                <MudGrid>
+                                    <MudItem xs="12" md="9">
+                                        <MudTextField @bind-Value="_excelFilePath"
+                                                      Label="Ruta del Archivo de Excel (.xlsx)"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Required="true"
+                                                      Placeholder="C:\FacturasContador\FacturasSincronizadas.xlsx"
+                                                      Adornment="Adornment.Start"
+                                                      AdornmentIcon="@Icons.Material.Filled.FileDownload" />
+                                    </MudItem>
+                                    <MudItem xs="12" md="3" Class="d-flex align-center">
+                                        @if (_excelDirExists)
+                                        {
+                                            <MudChip T="string" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CheckCircle">Ruta Válida</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Color="Color.Warning" Variant="Variant.Text" Icon="@Icons.Material.Filled.Warning">Directorio Inválido</MudChip>
+                                        }
+                                    </MudItem>
+                                    <MudItem xs="12">
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                            La ruta absoluta donde se actualizará la planilla Excel de facturas.
+                                        </MudText>
+                                    </MudItem>
+                                </MudGrid>
+                            </div>
+                        </div>
+                    </MudTabPanel>
 
-                    <MudGrid>
-                        <MudItem xs="12" md="6">
-                            <MudTextField @bind-Value="_newPassword"
-                                          Label="@Localizer.T("Settings.NewPassword")"
-                                          InputType="@_passwordInputType"
-                                          Variant="Variant.Outlined"
-                                          Margin="Margin.Dense"
-                                          Style="color: white;"
-                                          Adornment="Adornment.End"
-                                          AdornmentIcon="@_passwordInputIcon"
-                                          OnAdornmentClick="TogglePasswordVisibility" />
-                        </MudItem>
-                        <MudItem xs="12" md="6">
-                            <MudTextField @bind-Value="_confirmPassword"
-                                          Label="@Localizer.T("Settings.ConfirmPassword")"
-                                          InputType="@_passwordInputType"
-                                          Variant="Variant.Outlined"
-                                          Margin="Margin.Dense"
-                                          Style="color: white;"
-                                          Validation="@(new Func<string, string?>(ValidatePasswordMatch))" />
-                        </MudItem>
-                    </MudGrid>
-                </div>
+                    <!-- PESTAÑA 2: SEGURIDAD -->
+                    <MudTabPanel Text="@Localizer.T("Settings.SecuritySection")" Icon="@Icons.Material.Filled.Lock">
+                        <div class="px-6 py-4 d-flex flex-column gap-6">
+                            <div>
+                                <div class="d-flex align-center mb-4">
+                                    <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Success" Class="mr-2" />
+                                    <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                                        @Localizer.T("Settings.SecuritySection")
+                                    </MudText>
+                                </div>
 
-                <MudDivider Style="background-color: rgba(255, 255, 255, 0.1);" />
+                                <div class="mb-4">
+                                    <MudAlert Severity="Severity.Info" 
+                                              Variant="Variant.Outlined" 
+                                              Class="rounded-lg border-dashed"
+                                              Icon="@Icons.Material.Filled.Lock"
+                                              Style="color: #A5D6A7; border-color: rgba(165, 214, 167, 0.4);">
+                                        Para modificar la contraseña de acceso, debe ingresar su contraseña actual por seguridad.
+                                    </MudAlert>
+                                </div>
 
-                <!-- SECCIÓN 3: CONFIGURACIÓN DE IA -->
-                <div>
-                    <div class="d-flex align-center mb-4">
-                        <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Color="Color.Success" Class="mr-2" />
-                        <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
-                            @Localizer.T("Settings.AiSection")
-                        </MudText>
-                    </div>
+                                <MudGrid>
+                                    <MudItem xs="12">
+                                        <MudTextField @bind-Value="_currentPassword"
+                                                      Label="Contraseña Actual"
+                                                      InputType="@_passwordInputType"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Adornment="Adornment.End"
+                                                      AdornmentIcon="@_passwordInputIcon"
+                                                      OnAdornmentClick="TogglePasswordVisibility"
+                                                      Placeholder="Requerida solo si vas a cambiar la contraseña" />
+                                    </MudItem>
+                                    <MudItem xs="12" md="6">
+                                        <MudTextField @bind-Value="_newPassword"
+                                                      Label="@Localizer.T("Settings.NewPassword")"
+                                                      InputType="@_passwordInputType"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Adornment="Adornment.End"
+                                                      AdornmentIcon="@_passwordInputIcon"
+                                                      OnAdornmentClick="TogglePasswordVisibility" />
+                                    </MudItem>
+                                    <MudItem xs="12" md="6">
+                                        <MudTextField @bind-Value="_confirmPassword"
+                                                      Label="@Localizer.T("Settings.ConfirmPassword")"
+                                                      InputType="@_passwordInputType"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Validation="@(new Func<string, string?>(ValidatePasswordMatch))" />
+                                    </MudItem>
+                                </MudGrid>
+                            </div>
+                        </div>
+                    </MudTabPanel>
 
-                    <div class="mb-4">
-                        <MudAlert Severity="Severity.Info" 
-                                  Variant="Variant.Outlined" 
-                                  Class="rounded-lg border-dashed"
-                                  Icon="@Icons.Material.Filled.Help"
-                                  Style="color: #A5D6A7; border-color: rgba(165, 214, 167, 0.4);">
-                            @Localizer.T("Settings.AiHelp")
-                        </MudAlert>
-                    </div>
+                    <!-- PESTAÑA 3: INTELIGENCIA ARTIFICIAL -->
+                    <MudTabPanel Text="@Localizer.T("Settings.AiSection")" Icon="@Icons.Material.Filled.AutoAwesome">
+                        <div class="px-6 py-4 d-flex flex-column gap-6">
+                            <div>
+                                <div class="d-flex align-center mb-4">
+                                    <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Color="Color.Success" Class="mr-2" />
+                                    <MudText Typo="Typo.h6" Style="font-weight: 600; color: #C2FE71;">
+                                        @Localizer.T("Settings.AiSection")
+                                    </MudText>
+                                </div>
 
-                    <MudGrid>
-                        <MudItem xs="12" md="6">
-                            <MudSelect T="string"
-                                       Label="@Localizer.T("Settings.AiProvider")"
-                                       Value="_selectedProvider"
-                                       ValueChanged="OnProviderSelected"
-                                       Variant="Variant.Outlined"
-                                       Margin="Margin.Dense"
-                                       Style="color: white;">
-                                @foreach (var provider in _aiPresets.Keys)
-                                {
-                                    <MudSelectItem Value="@provider">@provider</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" md="6">
-                            <MudTextField @bind-Value="_aiModelName"
-                                          Label="@Localizer.T("Settings.AiModel")"
-                                          Variant="Variant.Outlined"
-                                          Margin="Margin.Dense"
-                                          Style="color: white;"
-                                          Required="true" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="_aiEndpoint"
-                                          Label="@Localizer.T("Settings.AiEndpoint")"
-                                          Variant="Variant.Outlined"
-                                          Margin="Margin.Dense"
-                                          Style="color: white;"
-                                          Required="true" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="_aiApiKey"
-                                          Label="@Localizer.T("Settings.AiApiKey")"
-                                          InputType="@_apiKeyInputType"
-                                          Variant="Variant.Outlined"
-                                          Margin="Margin.Dense"
-                                          Style="color: white;"
-                                          Adornment="Adornment.End"
-                                          AdornmentIcon="@_apiKeyInputIcon"
-                                          OnAdornmentClick="ToggleApiKeyVisibility" />
-                        </MudItem>
-                    </MudGrid>
-                </div>
+                                <div class="mb-4">
+                                    <MudAlert Severity="Severity.Info" 
+                                              Variant="Variant.Outlined" 
+                                              Class="rounded-lg border-dashed"
+                                              Icon="@Icons.Material.Filled.Help"
+                                              Style="color: #A5D6A7; border-color: rgba(165, 214, 167, 0.4);">
+                                        @Localizer.T("Settings.AiHelp")
+                                    </MudAlert>
+                                </div>
 
+                                <MudGrid>
+                                    <MudItem xs="12" md="6">
+                                        <MudSelect T="string"
+                                                   Label="@Localizer.T("Settings.AiProvider")"
+                                                   Value="_selectedProvider"
+                                                   ValueChanged="OnProviderSelected"
+                                                   Variant="Variant.Outlined"
+                                                   Margin="Margin.Dense"
+                                                   Style="color: white;">
+                                            @foreach (var provider in _aiPresets.Keys)
+                                            {
+                                                <MudSelectItem Value="@provider">@provider</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" md="6">
+                                        <MudTextField @bind-Value="_aiModelName"
+                                                      Label="@Localizer.T("Settings.AiModel")"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Required="true" />
+                                    </MudItem>
+                                    <MudItem xs="12">
+                                        <MudTextField @bind-Value="_aiEndpoint"
+                                                      Label="@Localizer.T("Settings.AiEndpoint")"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Required="true" />
+                                    </MudItem>
+                                    <MudItem xs="12">
+                                        <MudTextField @bind-Value="_aiApiKey"
+                                                      InputType="@_apiKeyInputType"
+                                                      Label="@Localizer.T("Settings.AiApiKey")"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense"
+                                                      Style="color: white;"
+                                                      Adornment="Adornment.End"
+                                                      AdornmentIcon="@_apiKeyInputIcon"
+                                                      OnAdornmentClick="ToggleApiKeyVisibility" />
+                                    </MudItem>
+                                </MudGrid>
+                            </div>
+                        </div>
+                    </MudTabPanel>
+
+                </MudTabs>
             </MudForm>
         </MudCardContent>
 
@@ -199,10 +336,13 @@
     private MudForm? _form;
     private bool _isValid;
     private string _watchFolderPath = string.Empty;
+    private string _excelFilePath = string.Empty;
     private int _scanInterval = 10;
     private bool _directoryExists;
+    private bool _excelDirExists;
 
     // Security (Password)
+    private string _currentPassword = string.Empty;
     private string _newPassword = string.Empty;
     private string _confirmPassword = string.Empty;
     private bool _passwordVisibility = false;
@@ -239,6 +379,7 @@
     {
         var settings = ConfigService.GetSettings();
         _watchFolderPath = settings.ScanningSettings.WatchFolderPath;
+        _excelFilePath = settings.ScanningSettings.ExcelFilePath;
         _scanInterval = settings.ScanningSettings.ScanIntervalSeconds;
 
         _selectedProvider = settings.AiSettings?.Provider ?? "OpenAI";
@@ -252,6 +393,22 @@
     private void CheckDirectoryExists()
     {
         _directoryExists = !string.IsNullOrWhiteSpace(_watchFolderPath) && System.IO.Directory.Exists(_watchFolderPath);
+        if (!string.IsNullOrWhiteSpace(_excelFilePath))
+        {
+            try
+            {
+                var dir = System.IO.Path.GetDirectoryName(_excelFilePath);
+                _excelDirExists = !string.IsNullOrWhiteSpace(dir) && System.IO.Directory.Exists(dir);
+            }
+            catch
+            {
+                _excelDirExists = false;
+            }
+        }
+        else
+        {
+            _excelDirExists = false;
+        }
     }
 
     private void TogglePasswordVisibility()
@@ -301,14 +458,30 @@
 
             // Update scanning settings
             settings.ScanningSettings.WatchFolderPath = _watchFolderPath;
+            settings.ScanningSettings.ExcelFilePath = _excelFilePath;
             settings.ScanningSettings.ScanIntervalSeconds = _scanInterval;
 
             // Update password if a new one is typed
             if (!string.IsNullOrEmpty(_newPassword))
             {
+                if (string.IsNullOrEmpty(_currentPassword))
+                {
+                    Snackbar.Add("Debe ingresar la contraseña actual para establecer una nueva.", Severity.Error);
+                    FileScanner.StartMonitoring();
+                    return;
+                }
+                
+                if (!ConfigService.VerifyPassword(_currentPassword))
+                {
+                    Snackbar.Add("La contraseña actual es incorrecta.", Severity.Error);
+                    FileScanner.StartMonitoring();
+                    return;
+                }
+
                 if (_newPassword != _confirmPassword)
                 {
                     Snackbar.Add(Localizer.T("Settings.PasswordMismatch"), Severity.Error);
+                    FileScanner.StartMonitoring();
                     return;
                 }
                 settings.SecuritySettings.PasswordHash = ConfigService.HashPassword(_newPassword);
@@ -332,6 +505,7 @@
             FileScanner.StartMonitoring();
 
             // Clear password fields
+            _currentPassword = string.Empty;
             _newPassword = string.Empty;
             _confirmPassword = string.Empty;
 

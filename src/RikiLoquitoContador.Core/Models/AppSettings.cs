@@ -22,6 +22,7 @@ namespace RikiLoquitoContador.Core.Models
     {
         public string WatchFolderPath { get; set; } = string.Empty;
         public int ScanIntervalSeconds { get; set; } = 10;
+        public string ExcelFilePath { get; set; } = string.Empty;
     }
 
     public class AiSettings
