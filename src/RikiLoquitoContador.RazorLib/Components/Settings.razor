@@ -256,6 +256,12 @@
                                                          Min="5"
                                                          Max="3600" />
                                     </MudItem>
+                                    <MudItem xs="12" md="6" Class="d-flex align-center">
+                                        <MudSwitch T="bool" @bind-Value="_treatPdfAsImage"
+                                                   Label="Tratar PDFs como imágenes (Experimental)"
+                                                   Color="Color.Success"
+                                                   Style="color: white;" />
+                                    </MudItem>
                                 </MudGrid>
                             </div>
 
@@ -567,6 +573,7 @@
     private string _newClientCuit = string.Empty;
     private string _newClientName = string.Empty;
     private int _scanInterval = 10;
+    private bool _treatPdfAsImage;
     private bool _directoryExists;
     private bool _processedDirExists;
     private bool _conflictsDirExists;
@@ -627,6 +634,7 @@
         _conflictsFolderPath = settings.ScanningSettings.ConflictsFolderPath;
         _clientesContador = settings.ScanningSettings.ClientesContador?.ToList() ?? new List<ClienteContador>();
         _scanInterval = settings.ScanningSettings.ScanIntervalSeconds;
+        _treatPdfAsImage = settings.ScanningSettings.TreatPdfAsImage;
 
         _selectedProvider = settings.AiSettings?.Provider ?? "OpenAI";
         _aiEndpoint = settings.AiSettings?.Endpoint ?? "";
@@ -761,6 +769,7 @@
             settings.ScanningSettings.ConflictsFolderPath = _conflictsFolderPath;
             settings.ScanningSettings.ClientesContador = _clientesContador;
             settings.ScanningSettings.ScanIntervalSeconds = _scanInterval;
+            settings.ScanningSettings.TreatPdfAsImage = _treatPdfAsImage;
 
             // Update password if a new one is typed
             if (!string.IsNullOrEmpty(_newPassword))

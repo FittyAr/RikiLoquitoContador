@@ -25,6 +25,7 @@ namespace RikiLoquitoContador.Core.Models
         public string ExcelFilePath { get; set; } = string.Empty;
         public string ProcessedFolderPath { get; set; } = string.Empty;
         public string ConflictsFolderPath { get; set; } = string.Empty;
+        public bool TreatPdfAsImage { get; set; } = false;
         public System.Collections.Generic.List<ClienteContador> ClientesContador { get; set; } = new();
     }
 

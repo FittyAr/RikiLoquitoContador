@@ -81,6 +81,7 @@ namespace RikiLoquitoContador.Core.Services
                     defaultSettings.ScanningSettings.ConflictsFolderPath = Path.Combine(appDataDir, "Conflictos");
                     defaultSettings.ScanningSettings.ExcelFilePath = Path.Combine(appDataDir, "FacturasSincronizadas.xlsx");
                     defaultSettings.ScanningSettings.ScanIntervalSeconds = 10;
+                    defaultSettings.ScanningSettings.TreatPdfAsImage = false;
                     defaultSettings.ScanningSettings.ClientesContador = new();
                     defaultSettings.ConnectionStrings.DefaultConnection = $"Data Source={Path.Combine(appDataDir, "facturas.db")}";
 
@@ -184,6 +185,12 @@ namespace RikiLoquitoContador.Core.Services
                 _cachedSettings.ScanningSettings.ScanIntervalSeconds = interval;
             }
 
+            var treatPdfAsImageStr = _configuration["ScanningSettings:TreatPdfAsImage"];
+            if (bool.TryParse(treatPdfAsImageStr, out bool treatPdfAsImage))
+            {
+                _cachedSettings.ScanningSettings.TreatPdfAsImage = treatPdfAsImage;
+            }
+
             var clientesContadorSection = _configuration.GetSection("ScanningSettings:ClientesContador");
             if (clientesContadorSection.Exists())
             {
@@ -220,6 +227,15 @@ namespace RikiLoquitoContador.Core.Services
             else
             {
                 _cachedSettings.ScanningSettings.ScanIntervalSeconds = 10;
+            }
+
+            if (bool.TryParse(_configuration["ScanningSettings:TreatPdfAsImage"], out bool treatPdfAsImage))
+            {
+                _cachedSettings.ScanningSettings.TreatPdfAsImage = treatPdfAsImage;
+            }
+            else
+            {
+                _cachedSettings.ScanningSettings.TreatPdfAsImage = false;
             }
 
             _cachedSettings.AiSettings.Provider = _configuration["AiSettings:Provider"] ?? "OpenAI";

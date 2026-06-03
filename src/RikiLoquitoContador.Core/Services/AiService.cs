@@ -51,6 +51,8 @@ namespace RikiLoquitoContador.Core.Services
 
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
             bool isOllamaNative = aiSettings.Provider == "Ollama" || (aiSettings.Endpoint != null && aiSettings.Endpoint.Contains("/api/chat"));
+            bool treatPdfAsImage = ext == ".pdf" && settings.ScanningSettings.TreatPdfAsImage;
+            bool isImage = ext == ".png" || ext == ".jpg" || ext == ".jpeg" || treatPdfAsImage;
             
             string prompt;
             try
@@ -67,12 +69,46 @@ namespace RikiLoquitoContador.Core.Services
             {
                 object requestPayload;
 
-                if (ext == ".png" || ext == ".jpg" || ext == ".jpeg")
+                if (isImage)
                 {
-                    // For image files, read bytes and send base64 data to enable visual analysis
-                    byte[] imageBytes = await File.ReadAllBytesAsync(filePath);
-                    string base64String = Convert.ToBase64String(imageBytes);
-                    string mimeType = ext == ".png" ? "image/png" : "image/jpeg";
+                    var base64Images = new System.Collections.Generic.List<string>();
+                    string mimeType = "image/jpeg";
+
+                    if (treatPdfAsImage)
+                    {
+                        try
+                        {
+                            using var pdfStream = File.OpenRead(filePath);
+                            foreach (var bitmap in PDFtoImage.Conversion.ToImages(pdfStream))
+                            {
+                                using (bitmap)
+                                using (var data = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90))
+                                {
+                                    if (data != null)
+                                    {
+                                        base64Images.Add(Convert.ToBase64String(data.ToArray()));
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception renderEx)
+                        {
+                            _logger.LogError(renderEx, "Error rendering PDF to image: {FilePath}", filePath);
+                            return new AiExtractionResult { Comments = $"Error al renderizar PDF a imagen: {renderEx.Message}" };
+                        }
+
+                        if (base64Images.Count == 0)
+                        {
+                            _logger.LogWarning("No pages rendered from PDF: {FilePath}", filePath);
+                            return new AiExtractionResult { Comments = "No se pudieron renderizar páginas del PDF." };
+                        }
+                    }
+                    else
+                    {
+                        byte[] imageBytes = await File.ReadAllBytesAsync(filePath);
+                        base64Images.Add(Convert.ToBase64String(imageBytes));
+                        mimeType = ext == ".png" ? "image/png" : "image/jpeg";
+                    }
 
                     if (isOllamaNative)
                     {
@@ -85,7 +121,7 @@ namespace RikiLoquitoContador.Core.Services
                                 {
                                     role = "user",
                                     content = prompt,
-                                    images = new[] { base64String }
+                                    images = base64Images.ToArray()
                                 }
                             },
                             stream = false,
@@ -94,6 +130,27 @@ namespace RikiLoquitoContador.Core.Services
                     }
                     else
                     {
+                        var contentList = new System.Collections.Generic.List<object>
+                        {
+                            new
+                            {
+                                type = "text",
+                                text = prompt
+                            }
+                        };
+
+                        foreach (var base64Str in base64Images)
+                        {
+                            contentList.Add(new
+                            {
+                                type = "image_url",
+                                image_url = new
+                                {
+                                    url = $"data:{mimeType};base64,{base64Str}"
+                                }
+                            });
+                        }
+
                         requestPayload = new
                         {
                             model = aiSettings.ModelName,
@@ -102,22 +159,7 @@ namespace RikiLoquitoContador.Core.Services
                                 new
                                 {
                                     role = "user",
-                                    content = new object[]
-                                    {
-                                        new
-                                        {
-                                            type = "text",
-                                            text = prompt
-                                        },
-                                        new
-                                        {
-                                            type = "image_url",
-                                            image_url = new
-                                            {
-                                                url = $"data:{mimeType};base64,{base64String}"
-                                            }
-                                        }
-                                    }
+                                    content = contentList.ToArray()
                                 }
                             },
                             temperature = 0.1
