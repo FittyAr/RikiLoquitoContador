@@ -136,3 +136,4 @@ _NCrunch*
 *.db-wal
 *.db-shm
 *.db-corrupt
+.vs
