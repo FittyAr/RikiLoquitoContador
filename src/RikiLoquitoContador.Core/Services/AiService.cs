@@ -79,18 +79,27 @@ namespace RikiLoquitoContador.Core.Services
                         try
                         {
                             using var pdfStream = File.OpenRead(filePath);
-                            foreach (var bitmap in PDFtoImage.Conversion.ToImages(pdfStream))
+                            if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS() ||
+                                (OperatingSystem.IsAndroid() && OperatingSystem.IsAndroidVersionAtLeast(31)) ||
+                                (OperatingSystem.IsIOS() && OperatingSystem.IsIOSVersionAtLeast(13, 6)) ||
+                                (OperatingSystem.IsMacCatalyst() && OperatingSystem.IsMacCatalystVersionAtLeast(13, 5)))
                             {
-                                using (bitmap)
-                                using (var data = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90))
+                                foreach (var bitmap in PDFtoImage.Conversion.ToImages(pdfStream))
                                 {
-                                    if (data != null)
+                                    using (bitmap)
+                                    using (var data = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90))
                                     {
-                                        base64Images.Add(Convert.ToBase64String(data.ToArray()));
+                                        if (data != null)
+                                        {
+                                            base64Images.Add(Convert.ToBase64String(data.ToArray()));
+                                        }
                                     }
                                 }
                             }
-                        }
+                            else
+                            {
+                                throw new PlatformNotSupportedException("La conversión de PDF a imagen no está soportada en esta plataforma.");
+                            }                        }
                         catch (Exception renderEx)
                         {
                             _logger.LogError(renderEx, "Error rendering PDF to image: {FilePath}", filePath);

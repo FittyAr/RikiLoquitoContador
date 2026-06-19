@@ -484,7 +484,7 @@
                                         <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Success" OnClick="AddInvoiceType" Size="Size.Medium" Style="margin-top: 4px;" />
                                     </div>
 
-                                    <MudTable Items="_invoiceTypes" Dense="true" Hover="true" MaxHeight="300px" Style="background: rgba(43, 43, 43, 0.4); color: white;">
+                                    <MudTable Items="_invoiceTypes" Dense="true" Hover="true" Height="300px" FixedHeader="true" Style="background: rgba(43, 43, 43, 0.4); color: white;">
                                         <HeaderContent>
                                             <MudTh Style="color: #C2FE71;">@Localizer.T("Settings.AfipSection.Code")</MudTh>
                                             <MudTh Style="color: #C2FE71;">@Localizer.T("Settings.AfipSection.Description")</MudTh>
@@ -520,7 +520,7 @@
                                         <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Success" OnClick="AddVatType" Size="Size.Medium" Style="margin-top: 4px;" />
                                     </div>
 
-                                    <MudTable Items="_vatTypes" Dense="true" Hover="true" MaxHeight="300px" Style="background: rgba(43, 43, 43, 0.4); color: white;">
+                                    <MudTable Items="_vatTypes" Dense="true" Hover="true" Height="300px" FixedHeader="true" Style="background: rgba(43, 43, 43, 0.4); color: white;">
                                         <HeaderContent>
                                             <MudTh Style="color: #C2FE71;">@Localizer.T("Settings.AfipSection.Description")</MudTh>
                                             <MudTh Style="color: #C2FE71; text-align: center; width: 60px;">@Localizer.T("Settings.AfipSection.Actions")</MudTh>
